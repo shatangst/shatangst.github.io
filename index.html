@@ -118,17 +118,17 @@
   </li>
         <li class="menu-item menu-item-tags">
 
-    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">3</span></a>
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">7</span></a>
 
   </li>
         <li class="menu-item menu-item-categories">
 
-    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">2</span></a>
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">4</span></a>
 
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">8</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">10</span></a>
 
   </li>
       <li class="menu-item menu-item-search">
@@ -176,6 +176,301 @@
             
 
   <div class="posts-expand">
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/05/CT%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/03/05/CT%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/" class="post-title-link" itemprop="url">CT基本概念</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-05 23:16:03 / 修改时间：23:25:08" itemprop="dateCreated datePublished" datetime="2021-03-05T23:16:03+08:00">2021-03-05</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8C%BB%E5%AD%A6%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">医学科技</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/05/CT%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/05/CT%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="像素（Pixel）和体素（Voxel）"><a href="#像素（Pixel）和体素（Voxel）" class="headerlink" title="像素（Pixel）和体素（Voxel）"></a>像素（Pixel）和体素（Voxel）</h1><p>像素（Pixel）是构成图像的基本单位，即图像可被分解成的最小的独立信息单元。因为图像是二维的，所以像素也是没有“厚度”概念的，其最大特点就是一个二维的概念。体素（Voxel）是指像素所对应的体积单位，与像素不同点在于，体素是一个三维的概念，是有厚度差别的，图像所对应的层厚就是体素的“高度”。</p>
+<h1 id="矩阵（Matrix）"><a href="#矩阵（Matrix）" class="headerlink" title="矩阵（Matrix）"></a>矩阵（Matrix）</h1><p>每幅图像都有数目不同的像素所构成，像素的多少通常用矩阵来表示，它是指构成图像的矩形面积内每一行和每一列的像素数目，如256<em>256，512</em>512等。在视野大小相同情况下，矩阵数目越大，像素就越小，图像则越清晰。</p>
+<p>CT图像矩阵的数目在行和列的两个方向上常是相同的，但在其他类型图像中也可以不同，如192*256的图像矩阵也是可以的。</p>
+<h1 id="CT值（CT-value）"><a href="#CT值（CT-value）" class="headerlink" title="CT值（CT value）"></a>CT值（CT value）</h1><p>由CT的原理已经知道，不同各种组织对X线有不同的衰减系数μ。但是在临床使用中，为了比较方便，不直接使用衰减系数而是采用不同组织相对于水的衰减系数的比值关系。对于组织M的CT值的计算公式如下：<br><img src="/images/25.png"> </p>
+<p><img src="/images/26.png"> </p>
+<p>通过上表可以看出，组织密度越大，CT值越高。通过CT值，我们可以量化组织的X线吸收系数，反映不同组织的密度差别；一旦某种组织发生病变，可以通过病变CT值的测量，辅助判断病变成分与性质。但需要指出的是，CT值并不是恒定不变的，会因X线硬化、电源状况、扫描参数、温度和邻近组织等因素发生改变，因此要在诊断中做出合理的判断。<br><img src="/images/27.png"> </p>
+<h1 id="窗宽（Window-Width-WW）和窗位（Window-Level-WL）"><a href="#窗宽（Window-Width-WW）和窗位（Window-Level-WL）" class="headerlink" title="窗宽（Window Width, WW）和窗位（Window Level, WL）"></a>窗宽（Window Width, WW）和窗位（Window Level, WL）</h1><p>通过CT值的概念，已经知道人体组织的密度差别较大：肺部含有大量的空气，CT值接近-1000；骨骼含有密度很高的矿物质，最高的CT值接近+1000，这样CT值的变化范围仅不计小数点以下，就有2000个HU的变化（图1-14）。人眼所能够分辨的显示器上的灰阶变化大致在128个左右。为了提高对较小密度差别间组织的分辨能力，在CT图像的显示过程中引入了窗技术，即通过窗位和窗宽的设置，有针对性地观察特定的部位和组织，突出感兴趣结构在图像中的对比和层次。 </p>
+<p>窗宽（WW）是指为最佳地显示所感兴趣结构而设置的CT值范围，该范围上下的CT值均以完全白或黑的色调显示，即该范围以外的CT值差别在图像上将无法显示。窗宽范围的中点即所谓的窗位（WL），通常它应是对应于最佳显示兴趣结构的CT值，用来设置为窗宽的中心。例如，脑实质的CT值约为35HU左右，大多数颅内病变CT值的变化在 -30至 +100HU范围内。所以头窗的窗位选择在35<del>40HU，窗宽范围选择在80</del>100HU左右（具体数值会因设备和习惯不同稍有差别），这样的头窗设置有利于脑实质的观察。而对于颅骨的观察，就要选择骨窗，窗位700 HU，窗宽2000 HU左右。 </p>
+<p>在CT图像中，若减小窗宽范围，会突出不同组织间的差别，图像的反差加大，但看起来较粗糙。这样做的好处是，密度差较小的病灶由于增大反差变得容易发现，如在肝脏的检查中，可适当减小窗宽有利于较低密度差别病灶的检出；而另一方面，如果加大窗宽，图像的反差会减小，层次会丰富些，图像看起来较柔和，但是密度差别较小的病灶不易观察。在腹部CT检查时，适当放宽窗位，则可以使腹部的脂肪和气体的密度有所区别。在临床工作中，应根据具体的情况，恰当地对CT图像的窗宽和窗位加以调整，将能够获得更多的诊断信息。当然这种调整是有限度的。 </p>
+<h1 id="分辨力"><a href="#分辨力" class="headerlink" title="分辨力"></a>分辨力</h1><p>图像的分辨力是衡量CT设备图像质量的重要指标，它主要包括空间分辨力、密度分辨力和时间分辨力几方面的内容。 </p>
+<ul>
+<li>空间分辨力（Spatial Resolution） </li>
+</ul>
+<p>图像中可分辨的邻接物体的空间几何尺寸的最小极限，即影像中对细微结构的分辨能力。图像的空间分辨力与单位面积内的像素数目成正比，像素数目越多则空间分辨力越高。 </p>
+<ul>
+<li>密度分辨力（Density Resolution） </li>
+</ul>
+<p>图像中可分辨的密度差别的最小极限，即影像中细微密度差别的分辨能力。图像的密度分辨力也与单位面积内的像素数目有关，在其他条件不变的情况下，矩阵数目越大，每个像素的体积越小，所接受的光量子数则越少，密度分辨力越低。 </p>
+<p>比较CT等数字化成像设备与普通平片可以发现，CT等设备图像的矩阵数目都有限，CT常用512×512的矩阵，而普通平片的每个像素为很小的银盐颗粒，矩阵数目要远远大于数字化成像设备。这样，数字化成像方式，包括CT、MRI、CR等与传统平片相比实际上是提高了密度分辨力，而降低了空间分辨力。 </p>
+<ul>
+<li>时间分辨力（Temporal Resolution） </li>
+</ul>
+<p>指单位时间内设备所能最多采集图像的帧数，与设备的性能参数有关，如采集时间、重建时间、显示方式、连续成像的能力等。在进行腹部实质脏器病变的检查过程中，常需进行增强检查，在增强后进行连续快速的多期相扫描，可以获得更多的信息。因此，设备的时间分辨力，即设备的扫描速度和连续扫描能力对于运动器官和体部脏器的检查是至关重要的。 </p>
+<h1 id="部分容积效应（Partial-Volume-Phenomenon）"><a href="#部分容积效应（Partial-Volume-Phenomenon）" class="headerlink" title="部分容积效应（Partial Volume Phenomenon）"></a>部分容积效应（Partial Volume Phenomenon）</h1><p>在层面成像方式中，如同一层面内含两种以上不同密度的物质，两物质在同一层面内横行走行并互相重叠，即当同一个体素内含有两种以上组织成份时（图1-15），该体素的CT值不能反映任何一种物质，实际上是各种组织CT值的平均。例如当一个体素内同时含有骨骼和肌肉，其CT值可能与肌肉类似，但实际上该体素内并不含有肌肉组织的成分。因此，在高密度区内的小低密度病灶的CT值常偏高，而在低密度区内的小高密度病灶的CT值常偏低。这点<img src="/images/28.png"> </p>
+<h1 id="重建-reconstruction-、回顾性重建-retrospective-reconstruction-和重组-reformation"><a href="#重建-reconstruction-、回顾性重建-retrospective-reconstruction-和重组-reformation" class="headerlink" title="重建(reconstruction)、回顾性重建(retrospective reconstruction)和重组(reformation)"></a>重建(reconstruction)、回顾性重建(retrospective reconstruction)和重组(reformation)</h1><p>重建(reconstruction)是将CT扫描中检测器所采集的原始数据(raw data)经过特殊的数学算法，如反投影法或傅利叶法等计算得到扫描（横断）层面内每个体素的CT值或密度值，形成所需要的数字矩阵与（横断面）CT图像。 </p>
+<p>回顾性重建(retrospective reconstruction)是指为了更好地显示图像的细微结构，对扫描所得的原始数据(raw data)再次有针对性地进行重建，改变和选择最佳的视野大小，视野中心和矩阵数目，根据需要选择特定的算法，如骨、软组织、细节或标准等，多层螺旋CT还可以改变再次重建图像的层厚和层数，从而提高组织间的密度分辨力，使图像更加清晰、细致、柔和，提高对细微结构的敏感性。常用在颞骨内听骨链、肺内结节或细微结构以及垂体病变的显示。 </p>
+<p>重组(reformation)是指对已经重建好的横断面CT图像，通过计算机技术对全部或部分的扫描层面进行进一步后处理，采用不同的方向和不同的显示技术，多角度、多方式立体地显示解剖结构和病变范围，常用的后处理重组方式包括多平面重组、表面遮盖显示、容积再现和仿真内窥镜等。这些不同的显示技术可以弥补CT横断面显示的不足，从不同方向，直观、立体显示解剖结构或病变形态。 </p>
+<h1 id="螺距（Pitch）"><a href="#螺距（Pitch）" class="headerlink" title="螺距（Pitch）"></a>螺距（Pitch）</h1><p>螺旋CT出现以后，由于采用了新的扫描方式的重建算法，在扫描过程中球管每旋转一周床所移动的距离不一定与层厚相同，检查床移动的距离可以等于、小于或大于层厚。为了衡量检查过程中检查床移动的快慢，设定了一个评价指标——螺距，最初它定义为球管旋转一周床所移动的距离与层厚或准值器宽度的比值。在单层螺旋CT设备中，层厚与准值器宽度都是相同的，因此无论采用哪个都是相同的。 </p>
+<p>随着多层螺旋设备的出现，特别是还有4层、16层乃至64层等不同的CT设备，层厚与准值器宽度在上述设备间有很大的不同。为了使螺距的指标在不同类型的设备间能够进行方便的比较，螺距重新定义为： </p>
+<p>螺距=每360º床移动的距离/准值器宽度 </p>
+<p>这样，无论在哪种类型的CT设备，典型的螺距值都位于0~2之间。如果在</p>
+<p>扫描过程中增大螺距，采用螺距大于1的扫描方式，即移床的距离大于准值器宽度，扫描速度将得到提高但图像质量会下降；如减小螺距，采用螺距小于1的扫描方式，即移床的距离小于准值器宽度，扫描速度虽减慢但图像质量会改善。</p>
+<h1 id="团注-Bolus-Injection"><a href="#团注-Bolus-Injection" class="headerlink" title="团注(Bolus Injection)"></a>团注(Bolus Injection)</h1><p>团注是指快速向血管内注入对比剂，单位时间内注射的速度要略高于同时期内该血管的血流量，这样可以使局部血管内的血液全部被注射的对比剂所置换。通过采用团注的注射方式，使动脉中的对比剂浓度在很短的时间内就可以达到峰值，从而可以更好地观察病变的强化行为和特点，避免由于注药时间过长，静脉等所可能造成的干扰。</p>
+<h1 id="伪影（Artifact）"><a href="#伪影（Artifact）" class="headerlink" title="伪影（Artifact）"></a>伪影（Artifact）</h1><p>伪影是指由于扫描时的实际情况与重建图像过程的一系列假设不一致，所带来图像与实际情况不符合的现象。CT中常见的伪影有以下几种：①移动伪影：扫描时由于患者的运动可产生移动性伪影，一般呈条状低密度影；②线束硬化伪影：当X线穿过高密度结构或物质，如枕骨粗隆、牙齿、术后银夹等后，会造成X线穿透特性的改变，从而在以后的计算和重建过程中引起衰减计算的错误，可呈放射状或条带状的高密度或低密度影；③机器故障伪影：这种伪影的原因和类型很多，如检测器工作不正常可造成环形或同心圆状的伪影。</p>
+
+      
+    </div>
+
+    
+    
+    
+    <div>
+      
+    </div>
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/05/%E5%8F%A3%E8%85%94%E6%BA%83%E7%96%A1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/03/05/%E5%8F%A3%E8%85%94%E6%BA%83%E7%96%A1/" class="post-title-link" itemprop="url">口腔溃疡</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-05 22:57:22 / 修改时间：23:02:26" itemprop="dateCreated datePublished" datetime="2021-03-05T22:57:22+08:00">2021-03-05</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8C%BB%E7%96%97%E5%81%A5%E5%BA%B7/" itemprop="url" rel="index"><span itemprop="name">医疗健康</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/05/%E5%8F%A3%E8%85%94%E6%BA%83%E7%96%A1/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/05/%E5%8F%A3%E8%85%94%E6%BA%83%E7%96%A1/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>口腔溃疡又称溃疡性口腔炎，是一种常见的口腔疾病，由病毒或细菌所致。一般常由链球菌、金黄色葡萄球菌、绿脓杆菌及大肠杆菌引起。</p>
+<h1 id="易发部位"><a href="#易发部位" class="headerlink" title="易发部位"></a>易发部位</h1><p>口腔溃疡多见于唇内侧、舌头、舌腹、颊粘膜、前庭沟、软腭等部位，这些地方的粘膜缺乏角质化层或角化较差。而发生与硬腭和附着龈的复发性口腔溃疡则较少见。复发性口腔溃疡的发作规律是部位越往后（咽侧）症状越明显，溃疡越深越大，患者会感觉疼痛剧烈，吃东西难以入口。</p>
+<h1 id="发病原因"><a href="#发病原因" class="headerlink" title="发病原因"></a>发病原因</h1><p>引起口腔溃疡的原因很多，精神过度紧张、情绪波动、睡眠不足，这种情况下很容易出现植物神经功能失调，发病的机会就比较高。在应激状况或身体衰弱的情况下，如你在感冒之初或体力、精神上压力过大时，它就会不定期地出现。这可能与人体内分泌障碍、胃肠功能紊乱、变态反应、局部刺激和微量元素、维生素B1缺乏等有关。</p>
+<h1 id="口腔溃疡病因类型"><a href="#口腔溃疡病因类型" class="headerlink" title="口腔溃疡病因类型"></a>口腔溃疡病因类型</h1><ul>
+<li><p>口腔黏膜病引起的：如疱疹性口炎、手足口病、天疱疮和类天疱疮继发溃疡等，这类溃疡只要及时采用抗菌、抗病毒、抗过敏等治疗措施，或中医药的辨证施治，一般都不会发生恶变。但特别应当注意的是，对属癌前病变的黏膜病不能掉以轻心。如果在白斑、赤斑、扁平苔藓等损害的基础上，出现经久不愈的溃疡，应引起高度警惕。</p>
+</li>
+<li><p>创伤性溃疡：这是一类与局部刺激因素直接有关的溃疡。牙齿折裂留下的残冠、牙齿表面沉积的结石、牙齿长得不齐或者长错位置、咬颊的不良习惯、牙齿磨耗之后形成的尖锐边缘以及做工粗糙的假牙等都可能引起创伤性溃疡。对于这种溃疡，只要尽早发现致病因素，及时采取诸如拔除残根残冠、磨改尖锐边缘、洁治牙结石、纠正咬颊习惯、重新镶牙等措施，就会很快愈合的。但是，如果发现过迟，措施不力，创伤性口腔溃疡就可能癌变。</p>
+</li>
+<li><p>由肿瘤引起的”恶性溃疡”：这种溃疡是恶性肿瘤局部浸润性发展的结果，在溃疡出现前就可能已出现恶性肿瘤的全身表现。</p>
+</li>
+</ul>
+<h1 id="复发性口腔溃疡"><a href="#复发性口腔溃疡" class="headerlink" title="复发性口腔溃疡"></a>复发性口腔溃疡</h1><p>口腔溃疡反反复复的发作，医学上称其为”复发性口腔溃疡”。复发性口腔溃疡一年四季均可发生，可出现于口腔黏膜的任何部位，唇颊舌较多见，多发生于青壮年，女性多于男性。其复发时间长短与口腔溃疡病史长短有密切关系，病史短时，可以几个月或一年发病一次；病史长时，可以一个月发病一次，或口腔溃疡新旧病变交替出现。一般情况下10天左右可自愈，不留疤痕。复发性口腔溃疡，是口腔粘膜病中最常见的疾病，反复发作但又有自限性，局部表现为孤立的、圆形或者椭圆形溃疡。临床上分为三种类型：复发性轻型口腔溃疡、复发性口炎性口腔溃疡、复发性坏死性粘膜腺周围炎。</p>
+<p>复发性口腔溃疡首先与免疫有着很密切的关系。有的患者表现为免疫缺陷，有的患者则表现为自身免疫反应，也就是由于各种因素，使人体正常的免疫系统，对自身组织抗原，产生免疫反应，引起组织的破坏而发病。</p>
+<p>其次与遗传有关系，在临床中，复发性口腔溃疡的发病，有明显的家族遗传倾向，我们常常看到，父母一方或双方若患有复发性口腔溃疡，那么，他们的子女就比一般人更容易患病。另外，复发性口腔溃疡的发作，常常还与一些疾病或症状有关，比如消化系统疾病：胃溃疡、十二指肠溃疡、慢性或迁延性肝炎、结肠炎等，另外贫血、偏食、消化不良、腹泻、发热、睡眠不足、过度疲劳、精神紧张、工作压力大、月经周期的改变等等。</p>
+<p>随着一种或多种因素的活跃、交替、重叠就容易出现机体免疫力下降，免疫功能紊乱，也就造成了复发性口腔溃疡的频繁发作。</p>
+<p>复发性口腔溃疡的典型表现是初起时有很细的小斑点，伴有灼热不适感，然后逐渐扩大为直径2～3毫米或更大的浅溃疡。溃疡微微有些凹陷，表面有一层淡黄色的假膜覆盖，溃疡周围的粘膜由于充血而呈红晕状，灼痛明显。</p>
+<p>当接触有刺激的食物时疼痛更加剧烈。复发性口腔溃疡的发作有自限性和周期性，一般的复发性口腔溃疡如果不经特殊治疗7～10天可逐渐愈合，间歇期长短不等，几天到数月，此起彼伏，反复发作。</p>
+<h1 id="口腔溃疡的家庭护理"><a href="#口腔溃疡的家庭护理" class="headerlink" title="口腔溃疡的家庭护理"></a>口腔溃疡的家庭护理</h1><p>没人知道为何有些人会得口腔溃疡，有些人不会。口腔溃疡常发生在口部，但也可出现在舌头、脸颊内侧、嘴唇或牙龈。口腔习惯不良、遗传、食物、刷牙过猛及情绪紧张等，均与口腔溃疡有密切关系。不论是什么因素造成，治疗口腔溃疡是件麻烦的事。口腔是全身细菌窝藏最多之处，治疗口腔溃疡有双重目的：一方面要消灭那些感染口腔溃疡的细菌，一方面要保护伤口。通过一些家庭治疗措施可以很有效地治疗口腔溃疡。</p>
+<ul>
+<li>双氧水</li>
+</ul>
+<p>可以用碳硫二胺双氧水，它含双氧水和甘油。双氧水可以将氧释出并将细菌清除，氧气泡进入微小的隙缝，甘油则覆盖溃疡并对它加以保护。</p>
+<ul>
+<li>用氯酸钾漱口</li>
+</ul>
+<p>可以加1茶匙氯酸钾于l杯水中，用此溶液漱口，一天数次，可治疗口腔溃疡。但不要吞入。</p>
+<ul>
+<li>试用红茶包</li>
+</ul>
+<p>有些专家建议在溃疡部位敷湿的红茶包。红茶含鞣酸，此物有收敛作用，止痛效果也不错。</p>
+<ul>
+<li>用稀释的双氧水漱口</li>
+</ul>
+<p>用1杯水稀释1汤匙双氧水，以此溶液漱口，可防止口腔溃疡感染，并加速复原。</p>
+<ul>
+<li>用明矾可以防止感染恶化</li>
+</ul>
+<p>明矾是止血药里的活性成分，可在口腔溃疡初期使用。明矾是一种杀菌剂及止痛剂，它能防止感染恶化，但它无法消除口腔溃疡。</p>
+<ul>
+<li>用氧化镁漱口</li>
+</ul>
+<p>氧化镁可在口腔溃疡表面形成保护层，也具有抗菌效果。</p>
+<ul>
+<li>用金印草制漱口水</li>
+</ul>
+<p>用金印草根制成浓茶，当作漱口水。或制成糊状物，直接涂在溃疡上，效果不错。</p>
+<ul>
+<li>避免刺激性物质</li>
+</ul>
+<p>咖啡、辛辣调味料、柳橙类水果、富含精氨酸的核果 尤其是胡桃 、巧克力及草莓等物，会刺激口腔溃疡，并使某些人产生口腔溃疡。因此应避免这类食物。</p>
+<ul>
+<li>每天吃酸酪乳</li>
+</ul>
+<p>每天吃4汤匙的原味酸酪乳，可将良性菌送入口腔，与那些有害的细菌作战，有益于预防口腔溃疡。</p>
+<ul>
+<li>避免会引起溃疡的食物</li>
+</ul>
+<p>避免口香糖、抽烟、咖啡、烫的食物及那些会诱发口腔溃疡的食物。</p>
+<ul>
+<li><p>营养素</p>
+</li>
+<li><p>离氨酸 氰基酸</p>
+</li>
+</ul>
+<p>每日3次，各500毫克，空腹服用。缺乏此氨基酸可能在口腔内外爆发口腔溃疡。</p>
+<ul>
+<li>添加维生素B12及叶酸</li>
+</ul>
+<p>用量依产品说明，含于舌下，空腹服用。</p>
+<ul>
+<li>维生素C</li>
+</ul>
+<p>每日3000 8000毫克，分成数次。用含生物类黄酮且缓冲过的剂型。</p>
+<ul>
+<li>泛酸 D5</li>
+</ul>
+<p>每日3次，各50 100毫克是抗紧张的维生素，对肾上腺功能是必需的。肾上腺是对抗紧张的内分泌腺。</p>
+<ul>
+<li>蒜头精胶囊</li>
+</ul>
+<p>每日3次，各3粒。当作一种天然抗生素及免疫激活剂。</p>
+<ul>
+<li>药用植物</li>
+</ul>
+<p>治疗口腔溃疡可使用牛蒡、金印草、保哥果茶及红苜蓿。红覆盆子茶也非常有效。</p>
+<ul>
+<li>多吃洋葱和生菜</li>
+</ul>
+<p>吃大量的洋葱生菜沙拉。洋葱含硫成分，有治疗功效。</p>
+<h1 id="预防措施"><a href="#预防措施" class="headerlink" title="预防措施"></a>预防措施</h1><p>对口腔溃疡的治疗方法虽然很多，但基本上都是对症治疗，目的主要是减轻疼痛或减少复发次数，很难完全控制复发，口腔溃疡在很大程度上与个人身体素质有关，因此，要想完全避免其发生，可能性不大，但如果尽量避免诱发因素，仍可降低发生率。所以对本病预防尤为重要。在生活中应注意以下几个方面：</p>
+<p>注意口腔卫生，避免损伤口腔黏膜。<br>保证充足的睡眠时间，避免过度疲劳。<br>保持心情舒畅，乐观开朗，避免着急。<br>注意生活起居规律性和营养均衡性，戒除烟酒，坚持体育锻炼，饮食清淡，多吃蔬菜水果，保持大便通畅，防止便秘。妇女经期前后要注意休息，保持心情愉快，避免过度疲劳，饮食要清淡，多吃水果，新鲜蔬菜，多饮水等等，以减少口疮发生的机会。<br>五、特别提醒<br>白塞氏病、口腔粘膜损伤性溃疡、疱疹性口炎、多形性红斑、结核性溃疡、接触性口炎、坏死性龈口炎和癌肿溃疡等疾病临床上也都可表现为口腔溃疡，其中以癌肿溃疡最为危险。在口腔溃疡的恶性肿瘤中，鳞状细胞癌约占90%。</p>
+<p>鳞癌可分为舌癌、龈癌、颊癌、口底癌等。在其他癌性肿瘤中，腺癌、恶性黑色素瘤、恶性淋巴瘤、位于腭部的恶性混合瘤也可表现为口腔粘膜的癌肿溃疡。到目前为止，导致口腔癌的原因尚不完全清楚，已知的发病因素有：慢性刺激（锐利的牙尖、不良修复体等对颊、舌粘膜的经常性刺激）；慢性炎性口腔溃疡（如舌的慢性溃疡，软腭的慢性口腔溃疡等长期不愈，易导致癌变）。</p>
+<p>这些均可表现为癌肿溃疡，常见于唇、舌部、表现为边缘不规则的深溃疡，边缘坚韧、凸出，周围有浸润。无论其中哪一种表现为口腔溃疡的疾病，都不容忽视，必须早期发现早期治疗为好。</p>
+
+      
+    </div>
+
+    
+    
+    
+    <div>
+      
+    </div>
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
         
   
   
@@ -1125,20 +1420,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">8</span>
+          <span class="site-state-item-count">10</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-count">4</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-count">7</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
