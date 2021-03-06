@@ -128,7 +128,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">10</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">14</span></a>
 
   </li>
       <li class="menu-item menu-item-search">
@@ -176,6 +176,2159 @@
             
 
   <div class="posts-expand">
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/" class="post-title-link" itemprop="url">信号幽灵wifi（第四篇）</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-06 18:43:36 / 修改时间：18:47:47" itemprop="dateCreated datePublished" datetime="2021-03-06T18:43:36+08:00">2021-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="IOCTL的调用逻辑"><a href="#IOCTL的调用逻辑" class="headerlink" title="IOCTL的调用逻辑"></a>IOCTL的调用逻辑</h1><p>之所以要分析这个，是因为上层wpa_supplicant和WIFI驱动打交道的方式，多半是通过ioctl的方式进行的，所以看看它的调用逻辑（这里只列出其主要的调用逻辑）：</p>
+<p>       上面便是用户ioctl调用的流程图，它最终分为两条线即有两种支持，选择那一条或两条都选（个人感觉最好选第2条线，因为它最后也是会调用到相应的函数的，而且还有其它更多的命令支持），从实际的代码来看，如果dev-&gt;netdev_ops</p>
+<p>-&gt;ndo_do_ioctl被初始化了，那么它一定会被调用，是否被初始化，在前面选择对net结构变量的初始化方式中有讨论过。</p>
+<p>       下面来具体看看该调用流程，首先说明下，上面的流程主要实现在kernel/net/wireless/wext_core.c文件中，这是wireless的协议层实现，恰好我们在wpa_supplicant中通常选择的驱动类型也是wext，它的入口函数是wext_ioctl_dispatch：</p>
+<p>/* entry point from dev ioctl*/</p>
+<p>static int wext_ioctl_dispatch(struct net <em>net, struct ifreq</em>ifr,</p>
+<p>                              unsigned int cmd, struct iw_request_info *info,</p>
+<p>                              wext_ioctl_func standard,</p>
+<p>                               wext_ioctl_funcprivate)</p>
+<p>{<br>        int ret = wext_permission_check(cmd);</p>
+<p> </p>
+<p>        if (ret)</p>
+<p>                return ret;</p>
+<p> </p>
+<p>        dev_load(net, ifr-&gt;ifr_name);</p>
+<p>        rtnl_lock();</p>
+<p>        ret = wireless_process_ioctl(net, ifr, cmd, info, standard,private);</p>
+<p>        rtnl_unlock();</p>
+<p> </p>
+<p>        return ret;</p>
+<p>}</p>
+<p>      </p>
+<p>它其实就是wireless_process_ioctl的封装函数，除了进行许可权限的确认，没有做什么其它内容，这里有standard和private两个函数指针的传递，其实就是两个回调函数，在后面会用到，它是由wext_handle_ioctl函数传递过来的：</p>
+<p>int wext_handle_ioctl(structnet *net, struct ifreq *ifr, unsigned int cmd,</p>
+<p>                      void __user *arg)</p>
+<p>{<br>        struct iw_request_info info = { .cmd =cmd, .flags = 0 };</p>
+<p>        int ret;</p>
+<p> </p>
+<p>        ret = wext_ioctl_dispatch(net, ifr, cmd, &amp;info,</p>
+<p>                                 ioctl_standard_call,</p>
+<p>                                 ioctl_private_call);     //这两个回调函数的定义之后再讨论，这里暂不理论</p>
+<p>        if (ret &gt;= 0 &amp;&amp;</p>
+<p>            IW_IS_GET(cmd) &amp;&amp;</p>
+<p>            copy_to_user(arg, ifr, sizeof(structiwreq)))</p>
+<p>                return -EFAULT;</p>
+<p> </p>
+<p>        return ret;</p>
+<p>}</p>
+<p>实际上传递的就是ioctl_standard_call和ioctl_private_call两个函数，在看看wireless_process_ioctl函数，这个函数很重要，下面做重点分析：</p>
+<p>static intwireless_process_ioctl(struct net *net, struct ifreq *ifr,</p>
+<p>                                  unsigned int cmd,</p>
+<p>                                  structiw_request_info *info,</p>
+<p>                                 wext_ioctl_func standard,</p>
+<p>                                 wext_ioctl_func private)</p>
+<p>{<br>        struct iwreq *iwr = (struct iwreq *)ifr;</p>
+<p>        struct net_device *dev;</p>
+<p>        iw_handler      handler;</p>
+<p> </p>
+<p>        /* Permissions are already checked indev_ioctl() before calling us.</p>
+<p>         * The copy_to/from_user() of ifr isalso dealt with in there */</p>
+<p> </p>
+<p>        /* Make sure the device exist */</p>
+<p>        if ((dev = __dev_get_by_name(net, ifr-&gt;ifr_name)) == NULL)             //通过网络接口名获取net_device设备</p>
+<p>                return -ENODEV;</p>
+<p> </p>
+<p>        /* A bunch of special cases, then thegeneric case…</p>
+<p>         * Note that ‘cmd’ is already filteredin dev_ioctl() with</p>
+<p>         * (cmd &gt;= SIOCIWFIRST &amp;&amp;cmd &lt;= SIOCIWLAST) */</p>
+<p>        if (cmd == SIOCGIWSTATS)</p>
+<p>                returnstandard(dev, iwr, cmd, info,</p>
+<p>                               &amp;iw_handler_get_iwstats);   //如果是状态查询命令，调用该函数（回调函数中的一个）</p>
+<p> </p>
+<p>#ifdef CONFIG_WEXT_PRIV</p>
+<p>        if (cmd == SIOCGIWPRIV &amp;&amp; dev-&gt;wireless_handlers)</p>
+<p>                returnstandard(dev, iwr, cmd, info,</p>
+<p>                               iw_handler_get_private);      //如果是专有命令，调用回调函数，同上</p>
+<p>#endif</p>
+<p> </p>
+<p>        /* Basic check */</p>
+<p>        if (!netif_device_present(dev))</p>
+<p>                return -ENODEV;</p>
+<p> </p>
+<p>        /* New driver API : try to find thehandler */</p>
+<p>        handler = get_handler(dev, cmd);              //根据cmd参数，从dev成员中查询相应的处理函数</p>
+<p>        if (handler) {<br>                /* Standard and private are notthe same */</p>
+<p>                if (cmd &lt; SIOCIWFIRSTPRIV)</p>
+<p>                        return standard(dev, iwr, cmd, info, handler);  //调用相应命令的处理函数</p>
+<p>                else if (private)</p>
+<p>                        return private(dev, iwr, cmd, info, handler);     //同上</p>
+<p>        }</p>
+<p>        /* Old driver API : call driver ioctlhandler */</p>
+<p>        if(dev-&gt;netdev_ops-&gt;ndo_do_ioctl)</p>
+<p>                return dev-&gt;netdev_ops-&gt;ndo_do_ioctl(dev,ifr, cmd);     //如果被设置就调用该函数</p>
+<p>        return -EOPNOTSUPP;</p>
+<p>}</p>
+<p>该函数的大意是，通过网络接口名称获得一个网络设备，然后根据命令的类型调用相应的处理函数，特别的是当dev-&gt;netdev_ops-&gt;ndo_do_ioctl或dev-&gt;wireless_handlers被设置时，则会查找执行对应的处理函数。Get_handle函数用于查询处理函数使用：</p>
+<p>static iw_handlerget_handler(struct net_device *dev, unsigned int cmd)</p>
+<p>{<br>        /* Don’t “optimise” thefollowing variable, it will crash */</p>
+<p>        unsigned int    index;          /* <em>MUST</em> be unsigned */</p>
+<p>        const struct iw_handler_def *handlers = NULL;</p>
+<p> </p>
+<p>#ifdef CONFIG_CFG80211_WEXT</p>
+<p>        if (dev-&gt;ieee80211_ptr &amp;&amp;dev-&gt;ieee80211_ptr-&gt;wiphy)</p>
+<p>                handlers =dev-&gt;ieee80211_ptr-&gt;wiphy-&gt;wext;  //初始化默认的处理函数</p>
+<p>#endif</p>
+<p>#ifdef CONFIG_WIRELESS_EXT</p>
+<p>        if (dev-&gt;wireless_handlers)</p>
+<p>                handlers= dev-&gt;wireless_handlers;    //这里的dev-&gt;wireless_handlers在net初始化时被作为扩张功能选择性的设置，前面有提到过</p>
+<p>#endif</p>
+<p> </p>
+<p>        if (!handlers)</p>
+<p>                return NULL;</p>
+<p> </p>
+<p>        /* Try as a standard command */</p>
+<p>        index = IW_IOCTL_IDX(cmd);</p>
+<p>        if (index <handlers->num_standard)</p>
+<p>                returnhandlers-&gt;standard[index];     //返回对应的标准函数</p>
+<p> </p>
+<p>#ifdef CONFIG_WEXT_PRIV</p>
+<p>        /* Try as a private command */</p>
+<p>        index = cmd - SIOCIWFIRSTPRIV;</p>
+<p>        if (index <handlers->num_private)</p>
+<p>                return handlers-&gt;private[index];        //返回对应的专有函数</p>
+<p>#endif</p>
+<p> </p>
+<p>        /* Not found */</p>
+<p>        return NULL;</p>
+<p>}</p>
+<p>那么这个dev-&gt;wireless_handlers究竟是什么，这里来揭开它的神秘面纱，在bcm4329源码src/wl/sys/wl_iw.c中，有它的定义：</p>
+<p>static const iw_handler wl_iw_handler[]=</p>
+<p>{<br>        (iw_handler) wl_iw_config_commit,</p>
+<p>        (iw_handler) wl_iw_get_name,</p>
+<p>        (iw_handler) NULL,</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p>static const iw_handler wl_iw_priv_handler[]= {<br>        NULL,</p>
+<p>        (iw_handler)wl_iw_set_active_scan,</p>
+<p>        NULL,</p>
+<p>        (iw_handler)wl_iw_get_rssi,</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p>const struct iw_handler_def  wl_iw_handler_def =</p>
+<p>{<br>        .num_standard =ARRAYSIZE(wl_iw_handler),</p>
+<p>        .standard = (iw_handler *) wl_iw_handler,</p>
+<p>        .num_private = ARRAYSIZE(wl_iw_priv_handler),</p>
+<p>        .num_private_args =ARRAY_SIZE(wl_iw_priv_args),</p>
+<p>        .private = (iw_handler *)wl_iw_priv_handler,</p>
+<p>        .private_args = (void *)wl_iw_priv_args,</p>
+<p> </p>
+<p>#if WIRELESS_EXT &gt;= 19</p>
+<p>        get_wireless_stats:dhd_get_wireless_stats,</p>
+<p>#endif</p>
+<p>        };</p>
+<p>#endif</p>
+<p>在net初始化的时候，这里把dev-&gt;wireless_handlers和dev-&gt;netdev_ops的初始化代码再贴出来：</p>
+<p>int</p>
+<p>dhd_net_attach(dhd_pub_t*dhdp, int ifidx)</p>
+<p>{<br>……</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 31))</p>
+<p>        ASSERT(!net-&gt;open);</p>
+<p>        net-&gt;get_stats = dhd_get_stats;</p>
+<p>        net-&gt;do_ioctl =dhd_ioctl_entry;</p>
+<p>       net-&gt;hard_start_xmit = dhd_start_xmit;</p>
+<p>       net-&gt;set_mac_address = dhd_set_mac_address;</p>
+<p>       net-&gt;set_multicast_list = dhd_set_multicast_list;</p>
+<p>        net-&gt;open =net-&gt;stop = NULL;</p>
+<p>#else</p>
+<p>        ASSERT(!net-&gt;netdev_ops);</p>
+<p>        net-&gt;netdev_ops = &amp;dhd_ops_virt;</p>
+<p>#endif</p>
+<p> </p>
+<p>……</p>
+<p>#if WIRELESS_EXT &gt; 12</p>
+<p>        net-&gt;wireless_handlers = (struct iw_handler_def*)&amp;wl_iw_handler_def;   //这里的初始化工作很重要，之后的ioctl流程会涉及到对它的使用</p>
+<p>#endif /* WIRELESS_EXT &gt; 12*/</p>
+<p> </p>
+<p> </p>
+<p>……</p>
+<p>}</p>
+<p>看到这里，应该可以明白相应的命令最终会在wl_iw.c中被执行，这些处理函数也是在该文件中实现。上面已经获取了命令的处理函数，那么它是如何被执行的呢？这里wireless_process_ioctl里有standard和private的回调函数的调用：</p>
+<p>static intioctl_standard_call(struct net_device *     dev,</p>
+<p>                               structiwreq             *iwr,</p>
+<p>                               unsigned int             cmd,</p>
+<p>                               structiw_request_info   *info,</p>
+<p>                               iw_handler               handler)</p>
+<p>{<br>        const struct iw_ioctl_description*     descr;</p>
+<p>        int                                     ret = -EINVAL;</p>
+<p> </p>
+<p>        /* Get the description of the IOCTL */</p>
+<p>        if (IW_IOCTL_IDX(cmd) &gt;=standard_ioctl_num)</p>
+<p>                return -EOPNOTSUPP;</p>
+<p>        descr =&amp;(standard_ioctl[IW_IOCTL_IDX(cmd)]);</p>
+<p> </p>
+<p>        /* Check if we have a pointer to userspace data or not */</p>
+<p>        if (descr-&gt;header_type !=IW_HEADER_TYPE_POINT) {
+ </p>
+<p>                /* No extra arguments. Trivialto handle */</p>
+<p>                ret = handler(dev, info, &amp;(iwr-&gt;u),NULL);</p>
+<p> </p>
+<p>                /* Generate an event to notifylisteners of the change */</p>
+<p>                if ((descr-&gt;flags &amp;IW_DESCR_FLAG_EVENT) &amp;&amp;</p>
+<p>                   ((ret == 0) || (ret ==-EIWCOMMIT)))</p>
+<p>                        wireless_send_event(dev, cmd, &amp;(iwr-&gt;u),NULL);</p>
+<p>        } else {<br>                ret =ioctl_standard_iw_point(&amp;iwr-&gt;u.data, cmd, descr,</p>
+<p>                                             handler, dev, info);</p>
+<p>        }</p>
+<p> </p>
+<p>        /* Call commit handler if needed anddefined */</p>
+<p>        if (ret == -EIWCOMMIT)</p>
+<p>                ret =call_commit_handler(dev);</p>
+<p> </p>
+<p>        /* Here, we will generate theappropriate event if needed */</p>
+<p> </p>
+<p>        return ret;</p>
+<p>}</p>
+<p>回调函数中对传递过来的handler函数指针进行呼叫，对应的处理函数就会被执行，当然用户传送的命令还不止这些，所以才会有net-&gt;netdev_ops的存在的必要性。下面来就来看看执行到：</p>
+<p>return dev-&gt;netdev_ops-&gt;ndo_do_ioctl(dev, ifr, cmd);     //wireless_process_ioctl的最后一句</p>
+<p>就会调用dhd_ioctl函数，这是wlan驱动对ioctl调用的处理函数，就是根据用户传递过来的cmd，给它找一个最合适最合理的“归宿”。</p>
+<p>static int</p>
+<p>dhd_ioctl_entry(structnet_device *net, struct ifreq *ifr, int cmd)</p>
+<p>{<br>……#ifdefined(CONFIG_WIRELESS_EXT)</p>
+<p>        /* linux wireless extensions */</p>
+<p>        if ((cmd &gt;= SIOCIWFIRST) &amp;&amp;(cmd &lt;= SIOCIWLAST)) {<br>                /* may recurse, do NOT lock */</p>
+<p>                ret = wl_iw_ioctl(net, ifr, cmd);</p>
+<p>               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return ret;</p>
+<p>        }</p>
+<p>#endif /*defined(CONFIG_WIRELESS_EXT) */</p>
+<p> </p>
+<p>#if LINUX_VERSION_CODE &gt;KERNEL_VERSION(2, 4, 2)</p>
+<p>        if (cmd == SIOCETHTOOL) {<br>                ret = dhd_ethtool(dhd,(void*)ifr-&gt;ifr_data);</p>
+<p>               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return ret;</p>
+<p>        }</p>
+<p>#endif /* LINUX_VERSION_CODE&gt; KERNEL_VERSION(2, 4, 2) */</p>
+<p> </p>
+<p>        if (cmd == SIOCDEVPRIVATE+1) {<br>                ret = wl_android_priv_cmd(net, ifr, cmd);</p>
+<p>                dhd_check_hang(net,&amp;dhd-&gt;pub, ret);</p>
+<p>                DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return ret;</p>
+<p>        }</p>
+<p> </p>
+<p>        if (cmd != SIOCDEVPRIVATE) {<br>               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return -EOPNOTSUPP;</p>
+<p>        }</p>
+<p> </p>
+<p>        memset(&amp;ioc, 0, sizeof(ioc));</p>
+<p>……</p>
+<p>bcmerror = dhd_wl_ioctl(&amp;dhd-&gt;pub, ifidx, (wl_ioctl_t*)&amp;ioc, buf, buflen);</p>
+<p>……</p>
+<p>}</p>
+<p>限于篇幅，该函数处理过程不再详述，大致的命令处理方法相似，wl_iw.c中的系列处理函数只是其中的一部分，wl_android中和dhd_linux.c也有相应的处理函数。</p>
+<h1 id="数据的传送"><a href="#数据的传送" class="headerlink" title="数据的传送"></a>数据的传送</h1><ul>
+<li>数据传送过程简述<br>传送指的是通过一个网络连接发送一个报文的行为.。无论何时内核需要传送一个数据报文, 它都必须调用驱动的 hard_start_xmit 方法将数据放在外出队列上。</li>
+</ul>
+<p>每个内核处理的报文都包含在一个 socket缓存结构( 结构 sk_buff )里, 定义见&lt;linux/skbuff.h&gt;。这个结构从 Unix 抽象中得名, 用来代表一个网络连接socket.。对于接口来说, 一个 socket 缓存只是一个报文。</p>
+<p>传给 hard_start_xmit 的socket 缓存包含物理报文, 它应当出现在媒介上, 以传输层的头部结束。接口不需要修改要传送的数据.。skb-&gt;data指向要传送的报文，skb-&gt;len 是以字节计的长度。传送下来的sk_buff中的数据已经包含硬件需要的帧头（这是通过hard_header函数将传递进入的信息，组织成设备特有的硬件头），所以在发送方法里不需要再填充硬件帧头，数据可以直接提 交给硬件发送。sk_buff是被锁住的(locked)，确保其他程序不会存取它。</p>
+<p>所有的网络设备驱动程序都必须有这个发送方法。在系统调用驱动程序的xmit时，发送的数据放在一个sk_buff 结构中。一般的驱动程序把数据传给硬件发出去。也有一些特殊的设备比如loopback把数据组成一个接收数据再回送给系统，或者dummy设备直接丢弃 数据。如果发送成功，hard_start_xmit方法里释放sk_buff，返回0(发送成功)。</p>
+<ul>
+<li>Bcm4329芯片wlan驱动数据传送<br>当上层传送过来报文，调用hard_start_xmit函数（该方法主用于初始化数据包的传输），该函数主要用于转换sk_buf，将其组织成pktbuf数据格式，然后调用dhd_sendpkt函数将pktbuf通过dhd bus发送到wifi芯片，最后硬件wifi芯片将报文radio发送到网络上。</li>
+</ul>
+<p>int</p>
+<p>dhd_start_xmit(struct sk_buff *skb,struct net_device *net)</p>
+<p>{<br>……</p>
+<p>        /* Convert to packet */</p>
+<p>        if (!(pktbuf =PKTFRMNATIVE(dhd-&gt;pub.osh, skb))) {<br>                DHD_ERROR((“%s:PKTFRMNATIVE failed\n”,</p>
+<p>                          dhd_ifname(&amp;dhd-&gt;pub, ifidx)));</p>
+<p>                dev_kfree_skb_any(skb);        //转换成功，释放skb，在通常处理中，会在中断中做该操作</p>
+<p>                ret = -ENOMEM;</p>
+<p>                goto done;</p>
+<p>        }</p>
+<p>#ifdef WLMEDIA_HTSF</p>
+<p>        if (htsfdlystat_sz &amp;&amp;PKTLEN(dhd-&gt;pub.osh, pktbuf) &gt;= ETHER_ADDR_LEN) {<br>                uint8 <em>pktdata = (uint8</em>)PKTDATA(dhd-&gt;pub.osh, pktbuf);</p>
+<p>                struct ether_header *eh =(struct ether_header *)pktdata;</p>
+<p> </p>
+<p>                if(!ETHER_ISMULTI(eh-&gt;ether_dhost) &amp;&amp;</p>
+<p>                       (ntoh16(eh-&gt;ether_type) == ETHER_TYPE_IP)) {<br>                        eh-&gt;ether_type =hton16(ETHER_TYPE_BRCM_PKTDLYSTATS);</p>
+<p>                }</p>
+<p>        }</p>
+<p>#endif</p>
+<p> </p>
+<p>        ret = dhd_sendpkt(&amp;dhd-&gt;pub, ifidx,pktbuf);     //发送pktbuf</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p>int</p>
+<p>dhd_sendpkt(dhd_pub_t *dhdp, intifidx, void *pktbuf)</p>
+<p>{<br>……</p>
+<p>#ifdef PROP_TXSTATUS</p>
+<p>        if (dhdp-&gt;wlfc_state &amp;&amp;((athost_wl_status_info_t*)dhdp-&gt;wlfc_state)-&gt;proptxstatus_mode</p>
+<p>                        != WLFC_FCMODE_NONE) {<br>                dhd_os_wlfc_block(dhdp);</p>
+<p>                ret =dhd_wlfc_enque_sendq(dhdp-&gt;wlfc_state, DHD_PKTTAG_FIFO(PKTTAG(pktbuf)),</p>
+<p>                        pktbuf);</p>
+<p>               dhd_wlfc_commit_packets(dhdp-&gt;wlfc_state,  (f_commitpkt_t)dhd_bus_txdata,</p>
+<p>                        dhdp-&gt;bus);</p>
+<p>                if(((athost_wl_status_info_t*)dhdp-&gt;wlfc_state)-&gt;toggle_host_if) {<br>                        ((athost_wl_status_info_t*)dhdp-&gt;wlfc_state)-&gt;toggle_host_if= 0;</p>
+<p>                }</p>
+<p>                dhd_os_wlfc_unblock(dhdp);</p>
+<p>        }</p>
+<p>        else</p>
+<p>                /* non-proptxstatus way */</p>
+<p>        ret = dhd_bus_txdata(dhdp-&gt;bus, pktbuf);         //在SDIO总线上传输</p>
+<p>#else</p>
+<p>        ret = dhd_bus_txdata(dhdp-&gt;bus, pktbuf);</p>
+<p>#endif /* PROP_TXST</p>
+<p>……</p>
+<p>}</p>
+<p>传输结束后，会产生一个中断，即传输结束中断，一般的网络驱动程序都会有这个中断的注册，但还有一种轮询方式，这在后面的数据的接收部分会有介绍，而sk_buf就在这个中断处理函数中被释放。</p>
+<p>但是，实际情况还是比较复杂，当硬件偶尔出现问题不能响应驱动时，就不能完成驱动的功能。在网络接口发送数据时也会发生一些不可预知的不响应动作，比如当网络介质因阻塞造成的冲突，而使发送报文的动作不能得到响应，但硬件通常不需要做此类的检测，需要驱动用软件的方法来实现，这就是超时传输机制。</p>
+<ul>
+<li>传输超时<br>与真实硬件打交道的大部分驱动不得不预备处理硬件偶尔不能响应。接口可能忘记它们在做什么，或者系统可能丢失中断。</li>
+</ul>
+<p>许多驱动通过设置定时器来处理这个问题; 如果在定时器到期时操作还没结束, 有什么不对了，网络系统, 本质上是一个复杂的由大量定时器控制的状态机的组合体。因此, 网络代码是一个合适的位置来检测发送超时, 作为它正常操作的一部分。网络驱动不需要担心自己去检测这样的问题，相反, 它们只需要设置一个超时值, 在net_device 结构的 watchdog_timeo 成员。这个超时值, 以 jiffy 计, 应当足够长以容纳正常的发送延迟(例如网络媒介拥塞引起的冲突)。</p>
+<p>如果当前系统时间超过设备的 trans_start 时间至少 time-out 值, 网络层最终调用驱动的 tx_timeout方法。这个方法的工作是是进行清除问题需要的工作并且保证任何已经开始的发送正确地完成。特别地, 驱动没有丢失追踪任何网络代码委托给它的 socket 缓存。</p>
+<p>当发生传送超时, 驱动必须在接口统计量中标记这个错误, 并安排设备被复位到一个干净的能发送新报文的状态，一般驱动会调用netif_wake_queue函数重新启动传输队列。</p>
+<h1 id="数据的接收"><a href="#数据的接收" class="headerlink" title="数据的接收"></a>数据的接收</h1><ul>
+<li>数据接收的方式和过程<br>从网络上接收报文比发送它要难一些，因为必须分配一个 sk_buff 并从一个原子性上下文中递交给上层。网络驱动可以实现 2 种报文接收的模式：中断驱动和查询，大部分驱动采用中断驱动技术。</li>
+</ul>
+<p>大部分硬件接口通过一个中断处理来控制，硬件中断处理器来发出 2 种可能的信号：一个新报文到了或者一个外出报文的发送完成了。网络接口也能够产生中断来指示错误, 例如状态改变, 等等。</p>
+<p>通常的中断过程能够告知新报文到达中断和发送完成通知的区别，通过检查物理设备中的状态寄存器，来判断是那一种中断，对于发送完成中断更新状态信息，释放skb内存。而对于接收数据中断，从数据队列中抽取一包数据，并把它传递给接收函数。</p>
+<p>注意：这里的对设备数据的操作是在锁得保护下完成的，做一最后还要释放掉锁。</p>
+<ul>
+<li>选择哪种接收模式<br>那么，既然后两种方式来处理网络接口发来的数据，选择那一种呢？一般认为中断是比较好的一种方式，不过，如果接口接收数据太频繁，甚至一秒中接收上千包数据，那么系统的中断次数就非常多，这回严重影响系统的性能。所以，在频繁接收数据的情况下，也可以考虑使用轮询的方式。</li>
+</ul>
+<p>这样，为了提高linux在宽带系统上的性能，网络子系统开发者创建了一种基于轮询方式的接口NAPI，它虽然在很多情况下，并不被看好，但处理高流量的高速接口时，用这种NAPI轮询技术处理到达的每一个数据包就足够了，前提是网络设备必须能支持这种模式，就是说一个网络接口必须能保存多个数据包，而且中断能够禁止中断并能在传输和其他事件上打开中断。</p>
+<ul>
+<li>Bcm4329芯片wlan驱动数据传送<br>在bcm4329芯片Wlan驱动中，在函数dhd_attach被调用时，会初始化一个内核线程或一个tasklet中断的下半部。其实这两种方式就是之前的中断和轮询方式的实现版，如果使用轮询，驱动初始化一个内核线程dhd_dpc_thread轮询网络接口接收的数据，中断下半部是中断处理程序的延续，用于处理比较复杂费时的操作，这样就能早点从中断中解放出来，防止拖累系统的性能。</li>
+</ul>
+<p>下面来看看这两种方式的初始化（在dhd_attach.c）：</p>
+<p>/* Set up the bottom halfhandler */</p>
+<p>        if (dhd_dpc_prio &gt;= 0) {<br>                /* Initialize DPC thread */</p>
+<p>                PROC_START(dhd_dpc_thread, dhd,&amp;dhd-&gt;thr_dpc_ctl, 0);</p>
+<p>        } else {<br>                /*  use tasklet for dpc */</p>
+<p>                tasklet_init(&amp;dhd-&gt;tasklet, dhd_dpc,(ulong)dhd);</p>
+<p>                dhd-&gt;thr_dpc_ctl.thr_pid =-1;</p>
+<p>        }</p>
+<p>首先来看看轮询方式的过程：</p>
+<p>dhd_dpc_thread(void *data)</p>
+<p>{<br>        tsk_ctl_t *tsk = (tsk_ctl_t *)data;</p>
+<p>        dhd_info_t <em>dhd = (dhd_info_t</em>)tsk-&gt;parent;</p>
+<p> </p>
+<p>        /* This thread doesn’t need anyuser-level access,</p>
+<p>         * so get rid of all our resources</p>
+<p>         */</p>
+<p>        if (dhd_dpc_prio &gt; 0)</p>
+<p>        {<br>                struct sched_param param;</p>
+<p>                param.sched_priority =(dhd_dpc_prio &lt; MAX_RT_PRIO)?dhd_dpc_prio:(MAX_RT_PRIO-1);</p>
+<p>                setScheduler(current, SCHED_FIFO,&amp;param);</p>
+<p>        }</p>
+<p> </p>
+<p>        DAEMONIZE(“dhd_dpc”);</p>
+<p>        /* DHD_OS_WAKE_LOCK is called indhd_sched_dpc[dhd_linux.c] down below  */</p>
+<p> </p>
+<p>        /* signal: thread has started */</p>
+<p>        complete(&amp;tsk-&gt;completed);</p>
+<p> </p>
+<p>        /* Run until signal received */</p>
+<p>        while (1) {<br>                if (down_interruptible(&amp;tsk-&gt;sema)== 0) {
+ </p>
+<p>                       SMP_RD_BARRIER_DEPENDS();</p>
+<p>                        if (tsk-&gt;terminated){<br>                                break;</p>
+<p>                        }</p>
+<p> </p>
+<p>                        /* Call bus dpc unlessit indicated down (then clean stop) */</p>
+<p>                        if (dhd-&gt;pub.busstate!= DHD_BUS_DOWN) {<br>                                if (dhd_bus_dpc(dhd-&gt;pub.bus)) {</p>
+<p>                                        up(&amp;tsk-&gt;sema);</p>
+<p>                                }</p>
+<p>                                else {<br>                                       DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                                }</p>
+<p>                        } else {<br>                                if (dhd-&gt;pub.up)</p>
+<p>                                       dhd_bus_stop(dhd-&gt;pub.bus, TRUE);</p>
+<p>                               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                        }</p>
+<p>                }</p>
+<p>                else</p>
+<p>                        break;</p>
+<p>        }</p>
+<p> </p>
+<p>       complete_and_exit(&amp;tsk-&gt;completed, 0);</p>
+<p>}</p>
+<p>这里是一个永真循环，直到接收到终止信号才停止，该线程就是通过不断调用dhd_bus_dpc函数调用实现轮询的，它的调用逻辑如下所示：</p>
+<p>上面是dhd_dpc_thread的调用逻辑，最后通过netif_rx将数据提交到上层协议，那么，还有一种中断方式时如何实现的呢？上面只看到驱动初始化了一个tasklet，一个中断下半部的实例。其实在dhdsdh_probe函数中已经注册了这个中断处理函数：</p>
+<p>static void *</p>
+<p>dhdsdio_probe(uint16 venid, uint16devid, uint16 bus_no, uint16 slot,</p>
+<p>        uint16 func, uint bustype, void*regsva, osl_t * osh, void *sdh)</p>
+<p>{<br>……</p>
+<p>if (bus-&gt;intr) {<br>                /* Register interrupt callback,but mask it (not operational yet). */</p>
+<p>                DHD_INTR((“%s: disableSDIO interrupts (not interested yet)\n”, <strong>FUNCTION</strong>));</p>
+<p>                bcmsdh_intr_disable(sdh);      //首先禁止SDIO中断，再注册中断</p>
+<p>                if ((ret= bcmsdh_intr_reg(sdh, dhdsdio_isr, bus)) != 0) {</p>
+<p>                        DHD_ERROR((“%s:FAILED: bcmsdh_intr_reg returned %d\n”,</p>
+<p>                                  <strong>FUNCTION</strong>, ret));</p>
+<p>                        goto fail;</p>
+<p>                }</p>
+<p>                DHD_INTR((“%s: registeredSDIO interrupt function ok\n”, <strong>FUNCTION</strong>));</p>
+<p>        } else {<br>                DHD_INFO((“%s: SDIOinterrupt function is NOT registered due to polling mode\n”,</p>
+<p>                           <strong>FUNCTION</strong>));</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>看看Dhdsdio_isr这个中断处理函数干了什么？在函数的最后部分是：</p>
+<p>#if defined(SDIO_ISR_THREAD)</p>
+<p>        DHD_TRACE((“Calling dhdsdio_dpc()from %s\n”, <strong>FUNCTION</strong>));</p>
+<p>        DHD_OS_WAKE_LOCK(bus-&gt;dhd);</p>
+<p>        while (dhdsdio_dpc(bus));</p>
+<p>        DHD_OS_WAKE_UNLOCK(bus-&gt;dhd);</p>
+<p>#else</p>
+<p>        bus-&gt;dpc_sched = TRUE;</p>
+<p>        dhd_sched_dpc(bus-&gt;dhd);</p>
+<p>#endif</p>
+<p>Dhd_sched_dpc函数在最后被调用（上面的while循环调用dhdsdio_dpc，其实和下面的这个调用函数最后的作用是一样的，就不予详述），这个函数的代码如下：</p>
+<p>void</p>
+<p>dhd_sched_dpc(dhd_pub_t *dhdp)</p>
+<p>{<br>        dhd_info_t <em>dhd = (dhd_info_t</em>)dhdp-&gt;info;</p>
+<p> </p>
+<p>        DHD_OS_WAKE_LOCK(dhdp);</p>
+<p>#ifdef DHDTHREAD</p>
+<p>        if (dhd-&gt;thr_dpc_ctl.thr_pid &gt;=0) {<br>               up(&amp;dhd-&gt;thr_dpc_ctl.sema);</p>
+<p>                return;</p>
+<p>        }</p>
+<p>#endif /* DHDTHREAD */</p>
+<p> </p>
+<p>        tasklet_schedule(&amp;dhd-&gt;tasklet);</p>
+<p>}</p>
+<p>就是触发一个中断的下半部tasklet，让cpu选择在一个合适的时候调用dhd_dpc函数，这个函数会调用dhd_bus_dpc，然后进入上面流程图的调用逻辑。</p>
+<p>详细的数据处理过程不详细叙述，可以参考源码来具体分析。</p>
+<p> </p>
+<h1 id="电源管理相关的调用逻辑"><a href="#电源管理相关的调用逻辑" class="headerlink" title="电源管理相关的调用逻辑"></a>电源管理相关的调用逻辑</h1><p>电源管理始终是手机等移动设备最重要的一个功能，尤其对于Android这种智能手机或者说手机电脑化的设备，电源管理更显得十分重要。</p>
+<p>Linux一直在传统的PC和服务器市场上有很好的应用，也有了比较好的电源管理框架，但是对于智能手机等嵌入式设备来说，Linux标准的电源管理就显得不是很适用了，有许多需要改进的地方。Android在这方面做了一些比较好的尝试，添加了一些新的特性，包括wake_lock，early_supend等。这里对wake_lock不做介绍，只介绍WIFI模块在系统将要或正在进入休眠的一些动作，感兴趣的话可以自己查阅android的电源管理相关文章。</p>
+<p>在介绍实质内容之前，先来看看android的电源管理的实现基础：Linux系统的电源管理Suspend框架跟Linux系统的驱动模型（Linux DriverModel）是相关的，也是基于Linux的驱动模型来实现的，下面的图描述了Linux系统电源管理的Suspend系统框架，Linux的Suspend系统分为两部分，一部分是平台无关的核心层，另一个是平台相关的平台层。操作接口都在平台无关的核心层里了，平台相关部分会使用Suspend API将自己的操作函数注册进Suspend核心层里。</p>
+<p>根据Linux系统驱动模型，Device结构描述了一个设备，device_driver是设备的驱动，而class、type和bus分别描述了设备所属的类别、类型和总线。而设备的电源管理也根据此模型分为class级的、type级的、bus级的和驱动级的。如果一个设备的class或者bus确切的知道如何管理一个设备的电源的时候，驱动级别的suspend/resume就可以为空了。这极大的提高了电源管理的高效性和灵活性。</p>
+<p>对于android平台上整个系统是如何一步一步进入休眠的，我这里不做详细介绍，只作出它的大致流程图：</p>
+<p>此流程图显示了系统的休眠的全过程，对WIFI模块来说，我们主要关注early_suspend和suspend以及相应的唤醒过程。当系统屏幕超时或用户（亮屏时）按power键，系统进入休眠流程（这里不讨论可能的中途退出休眠的其它因素），即在没有进程持有wakelock情况下，首先进入early_suspend流程。</p>
+<p>Early_suspend流程的实现基础是：android电源管理系统中定义了一个early_suspend结构链表，里面存放了所有系统中注册了的early_suspend实例，即如果一个模块要在系统进入early_suspend状态有所动作，就必须注册一个early_suspend实例。在WIFI驱动模块中，当驱动流程走到dhd_attach函数时，有相应的early_suspend注册代码：</p>
+<p>Path: dhd/sys/dhd_linux.c</p>
+<p>dhd_pub_t *</p>
+<p>dhd_attach(osl_t *osh, structdhd_bus *bus, uint bus_hdrlen)</p>
+<p>{<br>……</p>
+<p>#ifdef CONFIG_HAS_EARLYSUSPEND</p>
+<p>        dhd-&gt;early_suspend.level =EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 20;</p>
+<p>        dhd-&gt;early_suspend.suspend = dhd_early_suspend;</p>
+<p>       dhd-&gt;early_suspend.resume = dhd_late_resume;</p>
+<p>        register_early_suspend(&amp;dhd-&gt;early_suspend);</p>
+<p>        dhd_state |= DHD_ATTACH_STATE_EARLYSUSPEND_DONE;</p>
+<p>#endif</p>
+<p>……</p>
+<p>}</p>
+<p>红色区域初始化了dhd结构的两个early_suspend函数，并将其注册到电源管理系统。early_suspend的休眠函数的代码如下：</p>
+<p>static void dhd_early_suspend(structearly_suspend *h)</p>
+<p>{<br>        struct dhd_info *dhd = container_of(h,struct dhd_info, early_suspend);</p>
+<p> </p>
+<p>        DHD_TRACE((“%s: enter\n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>        if (dhd)</p>
+<p>                dhd_suspend_resume_helper(dhd, 1);</p>
+<p>}</p>
+<p>调用dhd_suspend_resume_helper函数，别看函数名中有resume单词，其实early_suspend和late_resume都是通过这个函数实现功能的：</p>
+<p>static void dhd_suspend_resume_helper(structdhd_info *dhd, int val)</p>
+<p>{<br>        dhd_pub_t *dhdp = &amp;dhd-&gt;pub;</p>
+<p> </p>
+<p>        DHD_OS_WAKE_LOCK(dhdp);</p>
+<p>        /* Set flag when early suspend wascalled */</p>
+<p>        dhdp-&gt;in_suspend = val;</p>
+<p>        if ((!dhdp-&gt;suspend_disable_flag)&amp;&amp; (dhd_check_ap_wfd_mode_set(dhdp) == FALSE))</p>
+<p>                dhd_set_suspend(val, dhdp);</p>
+<p>        DHD_OS_WAKE_UNLOCK(dhdp);</p>
+<p>}</p>
+<p> </p>
+<p>#if defined(CONFIG_HAS_EARLYSUSPEND)          //看这里，如果系统配置了EARLYSUSPEND       ，则系统会使用这部分代码，其实early_suspend是android对linux内核的电源管理的优化，所以如果你使用的是android平台，一定要配置该选项</p>
+<p>static int dhd_set_suspend(intvalue, dhd_pub_t *dhd)</p>
+<p>{<br>……</p>
+<p>        if (dhd &amp;&amp; dhd-&gt;up) {<br>                if(value &amp;&amp; dhd-&gt;in_suspend) {        //early_suspend</p>
+<p> </p>
+<p>                                /* Kernelsuspended */</p>
+<p>                               DHD_ERROR((“%s: force extra Suspend setting \n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_PM, (char *)&amp;power_mode,</p>
+<p>                                                sizeof(power_mode), TRUE, 0);</p>
+<p> </p>
+<p>                                /* Enablepacket filter, only allow unicast packet to send up */</p>
+<p>                               dhd_set_packet_filter(1, dhd);</p>
+<p> </p>
+<p>                                /* If DTIM skipis set up as default, force it to wake</p>
+<p>                                 * each thirdDTIM for better power savings.  Note that</p>
+<p>                                 * one sideeffect is a chance to miss BC/MC packet.</p>
+<p>                                 */</p>
+<p>                                bcn_li_dtim =dhd_get_dtim_skip(dhd);</p>
+<p>                                bcm_mkiovar(“bcn_li_dtim”,(char *)&amp;bcn_li_dtim,</p>
+<p>                                        4,iovbuf, sizeof(iovbuf));</p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p> </p>
+<p>                                /* Disable firmwareroaming during suspend */</p>
+<p>                               bcm_mkiovar(“roam_off”, (char *)&amp;roamvar, 4,</p>
+<p>                                        iovbuf,sizeof(iovbuf));</p>
+<p>                               dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p>                        } else {          //late_resume</p>
+<p> </p>
+<p>                                /* Kernelresumed  */</p>
+<p>                               DHD_TRACE((“%s: Remove extra suspend setting \n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>                                power_mode =PM_FAST;</p>
+<p>                               dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&amp;power_mode,</p>
+<p>                                                sizeof(power_mode), TRUE, 0);</p>
+<p> </p>
+<p>                                /* disable pktfilter */</p>
+<p>                                dhd_set_packet_filter(0,dhd);</p>
+<p> </p>
+<p>                                /* restorepre-suspend setting for dtim_skip */</p>
+<p>                               bcm_mkiovar(“bcn_li_dtim”, (char *)&amp;dhd-&gt;dtim_skip,</p>
+<p>                                        4, iovbuf, sizeof(iovbuf));</p>
+<p> </p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p>                                roamvar =dhd_roam_disable;</p>
+<p>                               bcm_mkiovar(“roam_off”, (char *)&amp;roamvar, 4, iovbuf,</p>
+<p>                                       sizeof(iovbuf));</p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p>                        }</p>
+<p>        }</p>
+<p> </p>
+<p>  return 0;</p>
+<p>}</p>
+<p>#endif</p>
+<p>    具体做什么内容，可以不用过多理会，一般只是会对该模块做些最基本的低功耗设置，其实真正的低功耗设置时在suspend中完成的。一般的模块也不需要注册early_suspend实例，但是背光灯，键盘LED和LCD屏是一定要在注册的。</p>
+<p>       Early_suspend注册成功后，会被挂接到电源管理系统中的一个链表上，当系统进入early_suspend流程时，会逐一调用该链表中的每一个实例的early_suspend回调函数，使设备进入相应的状态。在完成early_suspend流程后，系统检测wake_lock（也是被链表管理，其实不止一个），如果没有进程持有wake_lock包括main_wake_lock，系统进入suspend流程。</p>
+<p>       同样，suspend流程的实施也是需要系统支持的，需要实现电源管理的模块需要实现suspend和resume两个函数，并注册到系统中，对于WIFI设备的电源管理函数的注册在调用wifi_add_dev函数时被注册：</p>
+<p>Path：wl/sys/wl_android.c</p>
+<p>static struct platform_driverwifi_device = {<br>        .probe          = wifi_probe,</p>
+<p>        .remove         =wifi_remove,</p>
+<p>        .suspend        = wifi_suspend,</p>
+<p>        .resume         = wifi_resume,</p>
+<p>        .driver         = {<br>        .name  = “bcmdhd_wlan”,</p>
+<p>        }</p>
+<p>};</p>
+<p> </p>
+<p>static struct platform_driverwifi_device_legacy = {<br>        .probe          = wifi_probe,</p>
+<p>        .remove         = wifi_remove,</p>
+<p>        .suspend        =wifi_suspend,</p>
+<p>        .resume         = wifi_resume,</p>
+<p>        .driver         = {<br>        .name  = “bcm4329_wlan”,</p>
+<p>        }</p>
+<p>};</p>
+<p> </p>
+<p>static int wifi_add_dev(void)</p>
+<p>{<br>        DHD_TRACE((“## Callingplatform_driver_register\n”));</p>
+<p>        platform_driver_register(&amp;wifi_device);</p>
+<p>       platform_driver_register(&amp;wifi_device_legacy);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>    Wifi_suspend和wifi_resume随着wifi_device设备的注册而注册，这样当系统进入suspend流程后，就可以调用每个设备上的电源管理函数来使设备进入休眠状态了。</p>
+<p>       Wifi设备的休眠：</p>
+<p>static int wifi_suspend(structplatform_device *pdev, pm_message_t state)</p>
+<p>{<br>        DHD_TRACE((“##&gt; %s\n”,<strong>FUNCTION</strong>));</p>
+<p>#if (LINUX_VERSION_CODE &lt;=KERNEL_VERSION(2, 6, 39)) &amp;&amp; defined(OOB_INTR_ONLY)</p>
+<p>        bcmsdh_oob_intr_set(0);</p>
+<p>#endif</p>
+<p>        return 0;</p>
+<p>}</p>
+<p> </p>
+<p>static int wifi_resume(structplatform_device *pdev)</p>
+<p>{<br>        DHD_TRACE((“##&gt; %s\n”,<strong>FUNCTION</strong>));</p>
+<p>#if (LINUX_VERSION_CODE &lt;=KERNEL_VERSION(2, 6, 39)) &amp;&amp; defined(OOB_INTR_ONLY)</p>
+<p>        if (dhd_os_check_if_up(bcmsdh_get_drvdata()))</p>
+<p>                bcmsdh_oob_intr_set(1);</p>
+<p>#endif</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>       上面的两个电源管理函数都调用bcmsdh_oob_intr_set函数，但是传递的参数不同，在wifi_suspend函数中传递0，表示禁止wifi设备对应的oob中断，而wifi_resume的作用恰恰相反。</p>
+<p>       Bcmsdh_oob_intr_set函数的定义如下：</p>
+<p>PATH：bcmsdio/sys/bcmsdh_linux.c</p>
+<p>#if defined(OOB_INTR_ONLY)   //该中断的使用需要配置</p>
+<p>void bcmsdh_oob_intr_set(bool enable)</p>
+<p>{<br>        static bool curstate = 1;</p>
+<p>        unsigned long flags;</p>
+<p> </p>
+<p>       spin_lock_irqsave(&amp;sdhcinfo-&gt;irq_lock, flags);</p>
+<p>        if (curstate != enable) {</p>
+<p>                if (enable)</p>
+<p>                       enable_irq(sdhcinfo-&gt;oob_irq);</p>
+<p>                else</p>
+<p>                       disable_irq_nosync(sdhcinfo-&gt;oob_irq);</p>
+<p>                curstate =enable;</p>
+<p>        }</p>
+<p>       spin_unlock_irqrestore(&amp;sdhcinfo-&gt;irq_lock, flags);</p>
+<p>}</p>
+<p>      </p>
+<p>此中断是在打开wifi网络设备的时候被注册的，流程如下：</p>
+<p>static int</p>
+<p>dhd_open(struct net_device *net)</p>
+<p>{<br>……</p>
+<p>               if (dhd-&gt;pub.busstate !=DHD_BUS_DATA) {
+ </p>
+<p>                        /* try to bring up bus*/</p>
+<p>                        if ((ret = dhd_bus_start(&amp;dhd-&gt;pub)) !=0) {</p>
+<p>                               DHD_ERROR((“%s: failed with code %d\n”, <strong>FUNCTION</strong>, ret));</p>
+<p>                                ret = -1;</p>
+<p>                                goto exit;</p>
+<p>                        }</p>
+<p> </p>
+<p>                }</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p> </p>
+<p>dhd_bus_start(dhd_pub_t *dhdp)</p>
+<p>{<br>……</p>
+<p>#if defined(OOB_INTR_ONLY)</p>
+<p>        /* Host registration for OOB interrupt*/</p>
+<p>        if(bcmsdh_register_oob_intr(dhdp)) {</p>
+<p>……</p>
+<p>}</p>
+<p>在系统进入suspend状态后，wifi设备进入禁止中断状态，不再接收处理网络发来的数据，系统进入sleep状态，当然还有很多cpu在suspend之后进入sleep状态，但此时系统clock中断并没有被禁止，而且pmu还正常工作，以期对power键和充电器连接的检测。</p>
+
+      
+    </div>
+
+    
+    
+    
+    <div>
+      
+    </div>
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/" class="post-title-link" itemprop="url">信号幽灵wifi（第三篇）</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-06 18:38:13 / 修改时间：18:41:30" itemprop="dateCreated datePublished" datetime="2021-03-06T18:38:13+08:00">2021-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="WLAN驱动结构介绍"><a href="#WLAN驱动结构介绍" class="headerlink" title="WLAN驱动结构介绍"></a>WLAN驱动结构介绍</h1><ul>
+<li>SDIO驱动<br>在drivers/mmc下面是mmc卡，SD卡和SDIO卡驱动部分，其中包括host驱动，card驱动和core部分，由于网络接口卡挂接在SDIO总线上，所以在此之前我们先看一下SDIO的驱动结构。其驱动在drivers/mmc目录下的结构为：</li>
+</ul>
+<p> </p>
+<p>|– mmc</p>
+<p>|   |– card</p>
+<p>|   |– core</p>
+<p>|   |– host</p>
+<p> </p>
+<p>主要关注的目录是core目录，这个目录是真个驱动的核心目录，是媒体卡的通用代码部分，包括core.c，host.c和sdio.c等。CORE 层完成了不同协议和规范的实现，并为HOST 层的驱动提供了接口函数，该目录完成sdio总线的注册操作，相应的ops操作，以及支持mmc的代码。详细的情况将在函数接口部分详细讨论。</p>
+<p>Host目录是不同平台根据平台的特性而编写的host驱动。</p>
+<h2 id="Boardcom无线通讯芯片"><a href="#Boardcom无线通讯芯片" class="headerlink" title="Boardcom无线通讯芯片"></a>Boardcom无线通讯芯片</h2><ul>
+<li>概述<br>全球有线和无线通信半导体市场的领导者Broadcom（博通）公司（Nasdaq：BRCM）宣布，推出最新无线组合芯片BCM4330，该芯片可支持更多媒体形式和数据应用，且不会增大智能手机、平板电脑及其他移动设备的尺寸或缩短其电池寿命。BCM4330在单个芯片上集成了业界领先的Broadcom 802.11n Wi-Fi、蓝牙和FM无线技术，与分立式半导体器件组成的解决方案相比，在成本、尺寸、功耗和性能上有显著优势，是移动设备的理想选择。</li>
+</ul>
+<p>BCM4330采用了新的Wi-Fi和蓝牙标准，可支持新的、令人振奋的应用。例如，Broadcom BCM4330是业界第一款经过蓝牙4.0标准认证的组合芯片解决方案， 集成了蓝牙低功耗（BLE）标准。该标准使蓝牙技术能以超低功耗运行，因此BCM4330非常适用于需要很长电池寿命的系统，如无线传感器、医疗和健身监控设备等。BCM4330还支持Wi-Fi Direct™和蓝牙高速（HS）标准，因此采用BCM4330的移动设备能直接相互通信，而不必先连接到接入点、成为传统网络的一部分，从而为很多无线设备之间新的应用和使用模式创造了机会。</p>
+<p>Broadcom一直支持所有主流的操作系统（OS）平台，如MicrosoftWindows和Windows Phone、Google Chrome、Android等等，而且不仅是BCM4330，所有蓝牙、WLAN和GPS芯片组都提供这样的支持。</p>
+<ul>
+<li>源码<br>Bcm4330驱动源码一般被厂商单独提供，如果要在开发的LINUX系统中（当然它还支持多种平台）使用该源码，可以添加到linux kernel源码树里，也可以单独组织存放，可以直接编译到kernel，也可以编译成模块，然后再系统启动的流程中或其他适当的实际加载到kernel中，一般建议单独组织并编译成模块在需要的时候加载如kernel。</li>
+</ul>
+<p>|– src</p>
+<p>|   |– bcmsdio</p>
+<p>|   |– dhd</p>
+<p>|   |–dongle</p>
+<p>|   |–include</p>
+<p>|   |– shared</p>
+<p>|   |– wl</p>
+<p> </p>
+<p>这里主要内容到bcmsdio，dhd和wl三个目录下，bcm4330驱动的入口在dhd/sys/dhd_linux.c文件中的dhd_module()函数，设备的初始化和相关驱动注册都从这里开始，</p>
+<h2 id="详细接口及代码分析"><a href="#详细接口及代码分析" class="headerlink" title="详细接口及代码分析"></a>详细接口及代码分析</h2><ul>
+<li>WIFI驱动流程分析<br>    以boardcom bcm4329芯片驱动为例，相应的函数流程图如下：       </li>
+</ul>
+<p>                       </p>
+<ul>
+<li>WIFI设备注册流程<br>Platform_driver_register(wifi_device[_legacy])的调用将wifi_device[_legacy]驱动注册到系统中，wifi_device_legacy是为了兼容老版本的驱动。</li>
+</ul>
+<p>Path: wl/sys/wl_android.c</p>
+<p>Static struct Platform_driver wifi_device ={<br>         .probe     =     wifi_probe</p>
+<p>         .remove   =     wifi_remove</p>
+<p>         .suspend  =     wifi_supend</p>
+<p>         .resume   =     wifi_resume</p>
+<p>         .driver     =     {<br>         .name      =     “bcmdhd_wlan”</p>
+<p>}</p>
+<p>}</p>
+<p> </p>
+<p>Static struct Platform_driver wifi_device_legacy ={<br>         .probe     =     wifi_probe</p>
+<p>         .remove   =     wifi_remove</p>
+<p>         .suspend  =     wifi_supend</p>
+<p>         .resume   =     wifi_resume</p>
+<p>         .driver     =     {<br>         .name      =     “bcm4329_wlan”</p>
+<p>}</p>
+<p>}</p>
+<p>上面的展示了wifi平台设备驱动的注册过程，那么在平台相关的代码区应该有wifi作为平台设备被初始化和注册的地方：</p>
+<p>Path: kernel/arch/arm/mach-msm/msm_</p>
+<p>static struct resource mahimahi_wifi_resources[] = {</p>
+<p>        [0] = {<br>                .name           = “bcm4329_wlan_irq”,</p>
+<p>                .start          =MSM_GPIO_TO_INT(MAHIMAHI_GPIO_WIFI_IRQ),</p>
+<p>                .end            = MSM_GPIO_TO_INT(MAHIMAHI_GPIO_WIFI_IRQ),</p>
+<p>                .flags          = IORESOURCE_IRQ |IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static structwifi_platform_data mahimahi_wifi_control = {<br>        .set_power      = mahimahi_wifi_power,</p>
+<p>        .set_reset      = mahimahi_wifi_reset,</p>
+<p>        .set_carddetect = mahimahi_wifi_set_carddetect,</p>
+<p>        .mem_prealloc   = mahimahi_wifi_mem_prealloc,</p>
+<p>};</p>
+<p> </p>
+<p>static struct platform_device mahimahi_wifi_device = {</p>
+<p>        .name           = “bcm4329_wlan”,</p>
+<p>        .id             = 1,</p>
+<p>        .num_resources  = ARRAY_SIZE(mahimahi_wifi_resources),</p>
+<p>        .resource       = mahimahi_wifi_resources,</p>
+<p>        .dev            = {</p>
+<p>               .platform_data = &amp;mahimahi_wifi_control,</p>
+<p>        },</p>
+<p>};</p>
+<p>上面是对wifi_device设备的初始化，下面是对该设备的注册：</p>
+<p>static int __initmahimahi_wifi_init(void)</p>
+<p>{<br>        int ret;</p>
+<p> </p>
+<p>        if (!machine_is_mahimahi())</p>
+<p>                return 0;</p>
+<p> </p>
+<p>        printk(“%s: start\n”,<strong>func</strong>);</p>
+<p>       mahimahi_wifi_update_nvs(“sd_oobonly=1\r\n”, 0);</p>
+<p>       mahimahi_wifi_update_nvs(“btc_params70=0x32\r\n”, 1);</p>
+<p>        mahimahi_init_wifi_mem();</p>
+<p>        ret = platform_device_register(&amp;mahimahi_wifi_device);</p>
+<p>        return ret;</p>
+<p>}</p>
+<p> </p>
+<p>late_initcall(mahimahi_wifi_init);      //表明在系统启动的后期会自动调用加载该模块</p>
+<p>这样，通过上面的初始化和注册流程，wifi设备作为平台设备和驱动就可以握手成功了，这里的平台驱动只是对wifi设备的简单管理，如对wifi设备的挂起和恢复等操作了。但是在wifi设备初始化之前是不能够被挂起和恢复的，那么wifi设备是如何初始化的呢？</p>
+<p>Path: wl/sys/wl_android.c</p>
+<p>static int wifi_probe(structplatform_device *pdev)</p>
+<p>{<br>        struct wifi_platform_data *wifi_ctrl =</p>
+<p>                (structwifi_platform_data *)(pdev-&gt;dev.platform_data);</p>
+<p> </p>
+<p>        DHD_ERROR((“## %s\n”,<strong>FUNCTION</strong>));</p>
+<p>        wifi_irqres = platform_get_resource_byname(pdev,IORESOURCE_IRQ, “bcmdhd_wlan_irq”);</p>
+<p>        if (wifi_irqres == NULL)</p>
+<p>                wifi_irqres =platform_get_resource_byname(pdev,</p>
+<p>                        IORESOURCE_IRQ,”bcm4329_wlan_irq”);</p>
+<p>        wifi_control_data = wifi_ctrl;</p>
+<p> </p>
+<p>        wifi_set_power(1,0);   /* Power On */</p>
+<p>       wifi_set_carddetect(1); /* CardDetect (0-&gt;1) */</p>
+<p> </p>
+<p>        up(&amp;wifi_control_sem);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>这是wifi平台设备驱动注册时成功匹配wifi设备后调用的函数wifi_probe()，它的主要工作就是从wifi设备中获取终端资源，并获取wifi_platform_data类型结构赋予wifi_control_data变量，这一步很重要，下面就可以看出了它的重要性。然后调用wifi_set_power和wifi_set_carddetect函数给wifi芯片上电并检测。</p>
+<p>int wifi_set_power(int on, unsignedlong msec)</p>
+<p>{<br>        DHD_ERROR((“%s = %d\n”,<strong>FUNCTION</strong>, on));</p>
+<p>        if (wifi_control_data &amp;&amp;wifi_control_data-&gt;set_power) {<br>                wifi_control_data-&gt;set_power(on);</p>
+<p>        }</p>
+<p>        if (msec)</p>
+<p>                msleep(msec);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>Wifi_set_power函数中调用wifi_control_data-&gt;set_power(on)，wifi_control_data就是刚才说的那个重要变量，注意它是从wifi_device平台设备的wifi_platform_data获取的，那么看看上面的wifi_device初始化的代码：</p>
+<p>static struct platform_device mahimahi_wifi_device = {</p>
+<p>        .name           = “bcm4329_wlan”,</p>
+<p>        .id             = 1,</p>
+<p>        .num_resources  = ARRAY_SIZE(mahimahi_wifi_resources),</p>
+<p>        .resource       = mahimahi_wifi_resources,</p>
+<p>        .dev            = {</p>
+<p>                .platform_data =&amp;mahimahi_wifi_control,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static struct wifi_platform_datamahimahi_wifi_control= {<br>        .set_power      = mahimahi_wifi_power,</p>
+<p>        .set_reset      = mahimahi_wifi_reset,</p>
+<p>        .set_carddetect = mahimahi_wifi_set_carddetect,</p>
+<p>        .mem_prealloc   = mahimahi_wifi_mem_prealloc,</p>
+<p>};</p>
+<p>所以它实际调用的是mahimahi_wifi_power函数，该函数的定义在kernel/arch/arm /mach-msm/board-mahimahi-mmc.c之中：</p>
+<p>int mahimahi_wifi_power(int on)</p>
+<p>{<br>       printk(“%s: %d\n”, <strong>func</strong>, on);</p>
+<p> </p>
+<p>        if (on) {<br>               config_gpio_table(wifi_on_gpio_table,</p>
+<p>                                  ARRAY_SIZE(wifi_on_gpio_table));</p>
+<p>               mdelay(50);</p>
+<p>        } else {<br>               config_gpio_table(wifi_off_gpio_table,</p>
+<p>                                 ARRAY_SIZE(wifi_off_gpio_table));</p>
+<p>        }</p>
+<p> </p>
+<p>        mdelay(100);</p>
+<p>        gpio_set_value(MAHIMAHI_GPIO_WIFI_SHUTDOWN_N,on); /* WIFI_SHUTDOWN */</p>
+<p>        mdelay(200);</p>
+<p> </p>
+<p>       mahimahi_wifi_power_state = on;</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>调用gpio_set_value操作wifi芯片，给wifi芯片上电。那么来看看wifi_set_ carddetect函数究竟干了什么：</p>
+<p>Path：wl/sys/wl_android.c</p>
+<p>static int wifi_set_carddetect(int on)</p>
+<p>{<br>       DHD_ERROR((“%s = %d\n”, <strong>FUNCTION</strong>, on));</p>
+<p>        if(wifi_control_data &amp;&amp; wifi_control_data-&gt;set_carddetect) {<br>               wifi_control_data-&gt;set_carddetect(on);</p>
+<p>        }</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>同样会调用wifi_device的mahimahi_wifi_set_carddetect函数：</p>
+<p>Path:kernel/arch/arm/mach-msm/board-mahimahi-mmc.c</p>
+<p>int mahimahi_wifi_set_carddetect(int val)</p>
+<p>{<br>       pr_info(“%s: %d\n”, <strong>func</strong>, val);</p>
+<p>       mahimahi_wifi_cd = val;</p>
+<p>        if(wifi_status_cb) {<br>                wifi_status_cb(val,wifi_status_cb_devid);</p>
+<p>        } else</p>
+<p>               pr_warning(“%s: Nobody to notify\n”, <strong>func</strong>);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>Wifi_status_cb代码：</p>
+<p>static int mahimahi_wifi_status_register(</p>
+<p>                        void (*callback)(intcard_present, void *dev_id),</p>
+<p>                        void *dev_id)</p>
+<p>{<br>        if (wifi_status_cb)</p>
+<p>                return -EAGAIN;</p>
+<p>        wifi_status_cb = callback;</p>
+<p>        wifi_status_cb_devid = dev_id;</p>
+<p>        return 0;</p>
+<p>}</p>
+<p> </p>
+<p>static unsigned intmahimahi_wifi_status(struct device *dev)</p>
+<p>{<br>        return mahimahi_wifi_cd;</p>
+<p>}</p>
+<p> </p>
+<p>static structmmc_platform_data mahimahi_wifi_data = {<br>        .ocr_mask               = MMC_VDD_28_29,</p>
+<p>        .built_in               = 1,</p>
+<p>        .status                 = mahimahi_wifi_status,</p>
+<p>        .register_status_notify= mahimahi_wifi_status_register,</p>
+<p>        .embedded_sdio          = &amp;mahimahi_wifi_emb_data,</p>
+<p>};</p>
+<p>由上面代码；不难看出会有个地方调用mahimahi_wifi_status_register设置wifi_status_cb这个回调函数，可以跟踪这个mahimahi_wifi_data结构体，来看看它被传递给了谁：</p>
+<p>int msm_add_sdcc(unsigned intcontroller, struct mmc_platform_data *plat,</p>
+<p>                 unsigned int stat_irq,unsigned long stat_irq_flags);</p>
+<p> </p>
+<p>int __initmahimahi_init_mmc(unsigned int sys_rev, unsigned debug_uart)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        msm_add_sdcc(1, &amp;mahimahi_wifi_data, 0, 0);</p>
+<p> </p>
+<p>       ……</p>
+<p>        if (system_rev &gt; 0)</p>
+<p>                msm_add_sdcc(2,&amp;mahimahi_sdslot_data, 0, 0);</p>
+<p>        else {<br>                mahimahi_sdslot_data.status =mahimahi_sdslot_status_rev0;</p>
+<p>               mahimahi_sdslot_data.register_status_notify = NULL;</p>
+<p>               set_irq_wake(MSM_GPIO_TO_INT(MAHIMAHI_GPIO_SDMC_CD_REV0_N), 1);</p>
+<p>                msm_add_sdcc(2, &amp;mahimahi_sdslot_data,</p>
+<p>         ……</p>
+<p>}</p>
+<p>可以跟踪到这里Path：kernel/arch/arm/mach-msm/devices-msm7x30.c</p>
+<p>struct platform_device msm_device_sdc1 = {</p>
+<p>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 1,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc1),</p>
+<p>        .resource       = resources_sdc1,</p>
+<p>        .dev            = {</p>
+<p>               .coherent_dma_mask      =0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>struct platform_device msm_device_sdc2 = {</p>
+<p>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 2,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc2),</p>
+<p>        .resource       = resources_sdc2,</p>
+<p>        .dev            = {</p>
+<p>               .coherent_dma_mask      =0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>struct platform_devicemsm_device_sdc3 = {<br>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 3,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc3),</p>
+<p>        .resource       = resources_sdc3,</p>
+<p>        .dev            = {<br>                .coherent_dma_mask      = 0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>struct platform_device msm_device_sdc4= {<br>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 4,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc4),</p>
+<p>        .resource       = resources_sdc4,</p>
+<p>        .dev            = {<br>                                                                                                                         439,2-16      62%</p>
+<p>                .coherent_dma_mask      = 0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static struct platform_device *msm_sdcc_devices[] __initdata = {</p>
+<p>        &amp;msm_device_sdc1,</p>
+<p>        &amp;msm_device_sdc2,</p>
+<p>        &amp;msm_device_sdc3,</p>
+<p>        &amp;msm_device_sdc4,</p>
+<p>};</p>
+<p> </p>
+<p>int __initmsm_add_sdcc(unsigned int controller, struct mmc_platform_data *plat,</p>
+<p>                        unsigned int stat_irq,unsigned long stat_irq_flags)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        pdev =msm_sdcc_devices[controller-1]; //因为传过来的controller是1，所以下面注册的是第一个平台设备</p>
+<p>        pdev-&gt;dev.platform_data= plat;  //被传递给平台设备的platform_data</p>
+<p> </p>
+<p>        res =platform_get_resource_byname(pdev, IORESOURCE_IRQ, “status_irq”);</p>
+<p>        if (!res)</p>
+<p>                return -EINVAL;</p>
+<p>        else if (stat_irq) {<br>                res-&gt;start = res-&gt;end =stat_irq;</p>
+<p>                res-&gt;flags &amp;=~IORESOURCE_DISABLED;</p>
+<p>                res-&gt;flags |=stat_irq_flags;</p>
+<p>        }</p>
+<p> </p>
+<p>        return platform_device_register(pdev); //如上所述</p>
+<p>}</p>
+<p>那么这个平台设备是什么呢，就是sd卡控制器，也就是前面说的host驱动所驱动的主机控制设备。</p>
+<p>Path: drivers/mmc/host/msm_sdcc.c</p>
+<p>static struct platform_drivermsmsdcc_driver = {<br>        .probe          = msmsdcc_probe,</p>
+<p>        .suspend        = msmsdcc_suspend,</p>
+<p>        .resume         = msmsdcc_resume,</p>
+<p>        .driver         = {<br>                .name   = “msm_sdcc”,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static int __initmsmsdcc_init(void)</p>
+<p>{<br>        return platform_driver_register(&amp;msmsdcc_driver);</p>
+<p>}</p>
+<p>驱动成功匹配设备后，调用probe函数：</p>
+<p>static int</p>
+<p>msmsdcc_probe(structplatform_device *pdev)</p>
+<p>{<br>……</p>
+<p>if (stat_irqres &amp;&amp;!(stat_irqres-&gt;flags &amp; IORESOURCE_DISABLED)) {<br>……</p>
+<p>        } else if(plat-&gt;register_status_notify) {<br>                plat-&gt;register_status_notify(msmsdcc_status_notify_cb,host);</p>
+<p>        } else if (!plat-&gt;status)</p>
+<p>……</p>
+<p>}</p>
+<p>msmsdcc_status_notify_cb调用msmsdcc_check_status函数：</p>
+<p>msmsdcc_status_notify_cb(intcard_present, void *dev_id)</p>
+<p>{<br>        struct msmsdcc_host *host = dev_id;</p>
+<p> </p>
+<p>        printk(KERN_DEBUG “%s:card_present %d\n”, mmc_hostname(host-&gt;mmc),</p>
+<p>               card_present);</p>
+<p>        msmsdcc_check_status((unsigned long) host);</p>
+<p>}</p>
+<p>msmsdcc_check_status调用mmc_detect_change函数：</p>
+<p>static void</p>
+<p>msmsdcc_check_status(unsignedlong data)</p>
+<p>{<br>        ……</p>
+<p>        if (status ^ host-&gt;oldstat) {<br>                pr_info(“%s: Slot statuschange detected (%d -&gt; %d)\n”,</p>
+<p>                        mmc_hostname(host-&gt;mmc),host-&gt;oldstat, status);</p>
+<p>                if (status &amp;&amp;!host-&gt;plat-&gt;built_in)</p>
+<p>                        mmc_detect_change(host-&gt;mmc, (5 * HZ) / 2);</p>
+<p>                else</p>
+<p>                        mmc_detect_change(host-&gt;mmc, 0);</p>
+<p>        }</p>
+<p> </p>
+<p>        host-&gt;oldstat = status;</p>
+<p> </p>
+<p>out:</p>
+<p>        if (host-&gt;timer.function)</p>
+<p>                mod_timer(&amp;host-&gt;timer,jiffies + HZ);</p>
+<p>}</p>
+<p>可以看到mmc_detect_change被调用了，这个函数触发了一个延时工作：</p>
+<p>void mmc_detect_change(structmmc_host *host, unsigned long delay)</p>
+<p>{<br>……</p>
+<p> </p>
+<p>        mmc_schedule_delayed_work(&amp;host-&gt;detect, delay);</p>
+<p>}</p>
+<p>这个时候它会在delay时间后，执行host-&gt;detect延时工作对应的函数，在host驱动注册并匹配设备成功后执行的probe函数里，会调用mmc_alloc_host动态创建一个mmc_host：</p>
+<p>msmsdcc_probe(structplatform_device *pdev)</p>
+<p>{<br>……</p>
+<p>/*</p>
+<p>         * Setup our host structure</p>
+<p>         */</p>
+<p> </p>
+<p>        mmc = mmc_alloc_host(sizeof(struct msmsdcc_host),&amp;pdev-&gt;dev);</p>
+<p>        if (!mmc) {<br>                ret = -ENOMEM;</p>
+<p>                goto out;</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>mmc_alloc_host初始化工作入口：</p>
+<p>struct mmc_host*mmc_alloc_host(int extra, struct device *dev)</p>
+<p>{<br>……</p>
+<p>INIT_DELAYED_WORK(&amp;host-&gt;detect, mmc_rescan);</p>
+<p>……</p>
+<p>}</p>
+<p>mmc_rescan是core.c中一个很重要的函数，它遵照 SDIO 卡协议的 SDIO 卡启动过程，包括了非激活模式、卡识别模式和数据传输模式三种模式共九种状态的转换，你需要参照相关规范来理解。</p>
+<p>void mmc_rescan(structwork_struct *work)</p>
+<p>{<br>        struct mmc_host *host =</p>
+<p>                container_of(work, structmmc_host, detect.work);</p>
+<p>……</p>
+<p>        mmc_power_up(host);</p>
+<p>        sdio_reset(host);</p>
+<p>        mmc_go_idle(host);</p>
+<p> </p>
+<p>       mmc_send_if_cond(host, host-&gt;ocr_avail);</p>
+<p> </p>
+<p>        /*</p>
+<p>         * First we search for SDIO…</p>
+<p>         */</p>
+<p>        err = mmc_send_io_op_cond(host, 0, &amp;ocr);</p>
+<p>        if (!err) {<br>                if (mmc_attach_sdio(host, ocr))</p>
+<p>                        mmc_power_off(host);</p>
+<p>                extend_wakelock = 1;</p>
+<p>                goto out;</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>这个mmc_attach_sdio函数很重要，它是SDIO卡的初始化的起点，主要工作包括：匹配SDIO卡的工作电压，分配并初始化mmc_card结构，然后注册mmc_card到系统中：</p>
+<p>/*</p>
+<p> * Starting point for SDIO card init.</p>
+<p> */</p>
+<p>int mmc_attach_sdio(structmmc_host *host, u32 ocr)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        mmc_attach_bus(host,&amp;mmc_sdio_ops);  //初始化host的bus_ops</p>
+<p> </p>
+<p>       ……</p>
+<p> </p>
+<p>        host-&gt;ocr = mmc_select_voltage(host, ocr); //匹配SDIO卡工作电压</p>
+<p> </p>
+<p>        ……</p>
+<p> </p>
+<p>        /*</p>
+<p>         * Detect and init the card.</p>
+<p>         */</p>
+<p>        err = mmc_sdio_init_card(host, host-&gt;ocr, NULL, 0);//检测，分配初始化mmc_card</p>
+<p>        if (err)</p>
+<p>                goto err;</p>
+<p>        card = host-&gt;card;</p>
+<p>/*</p>
+<p>         * If needed, disconnect card detectionpull-up resistor.</p>
+<p>         */</p>
+<p>        err = sdio_disable_cd(card);</p>
+<p>        if (err)</p>
+<p>                goto remove;</p>
+<p> </p>
+<p>        /*</p>
+<p>         * Initialize (but don’t add) all present functions.</p>
+<p>         */</p>
+<p>        for (i = 0; i &lt; funcs; i++, card-&gt;sdio_funcs++) {</p>
+<p>#ifdef CONFIG_MMC_EMBEDDED_SDIO</p>
+<p>                if(host-&gt;embedded_sdio_data.funcs) {</p>
+<p>                       struct sdio_func *tmp;</p>
+<p> </p>
+<p>                        tmp = sdio_alloc_func(host-&gt;card);</p>
+<p>                        if(IS_ERR(tmp))</p>
+<p>                               goto remove;</p>
+<p>                       tmp-&gt;num = (i + 1);</p>
+<p>                       card-&gt;sdio_func[i] = tmp;</p>
+<p>                       tmp-&gt;class = host-&gt;embedded_sdio_data.funcs[i].f_class;</p>
+<p>                       tmp-&gt;max_blksize = host-&gt;embedded_sdio_data.funcs[i].f_maxblksize;</p>
+<p>                       tmp-&gt;vendor = card-&gt;cis.vendor;</p>
+<p>                       tmp-&gt;device = card-&gt;cis.device;</p>
+<p>                } else {</p>
+<p>#endif</p>
+<p>                        err =sdio_init_func(host-&gt;card, i + 1);</p>
+<p>                        if (err)</p>
+<p>                                goto remove;</p>
+<p>#ifdefCONFIG_MMC_EMBEDDED_SDIO</p>
+<p>                }</p>
+<p>#endif</p>
+<p>        }</p>
+<p> </p>
+<p>        mmc_release_host(host);</p>
+<p> </p>
+<p>        /*</p>
+<p>         * First add the card to the drivermodel…</p>
+<p>         */</p>
+<p>        err = mmc_add_card(host-&gt;card);     //添加mmc_card</p>
+<p>        if (err)</p>
+<p>                goto remove_added;</p>
+<p> </p>
+<p>        /*</p>
+<p>         * …then the SDIO functions.</p>
+<p>         */</p>
+<p>        for (i = 0;i &lt; funcs;i++) {<br>                err =sdio_add_func(host-&gt;card-&gt;sdio_func[i]);              //将sdio_func加入系统</p>
+<p>                if (err)</p>
+<p>                       goto remove_added;</p>
+<p>        }</p>
+<p> </p>
+<p>        return 0;</p>
+<p>……</p>
+<p>}</p>
+<p>这样，SDIO卡已经初始化成功并添加到了驱动中。上面说的过程是在SDIO设备注册时的调用流程，mmc_rescan是整个流程主体部分，由它来完成SDIO设备的初始化和添加。其实上面的流程只是创建，初始化，添加SDIO设备的一条线，还有另外的两条线也会调用mmc_rescan函数进行SDIO设备的上述操作：</p>
+<ul>
+<li><p>加载SDIO host驱动模块</p>
+</li>
+<li><p>SDIO设备中断</p>
+</li>
+<li><p>加载SDIO host驱动模块<br>Host作为平台设备被注册，前面也有列出相应源码：</p>
+</li>
+</ul>
+<p>static struct platform_drivermsmsdcc_driver = {<br>        .probe          = msmsdcc_probe,</p>
+<p>        .suspend        = msmsdcc_suspend,</p>
+<p>        .resume         = msmsdcc_resume,</p>
+<p>        .driver         = {<br>                .name   = “msm_sdcc”,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static int __initmsmsdcc_init(void)</p>
+<p>{<br>        returnplatform_driver_register(&amp;msmsdcc_driver);</p>
+<p>}</p>
+<p> </p>
+<p>Probe函数会调用mmc_alloc_host函数（代码前面已经贴出）来创建mmc_host结构变量，进行必要的初始化之后，调用mmc_add_host函数将它添加到驱动里面：</p>
+<p>int mmc_add_host(structmmc_host *host)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        err =device_add(&amp;host-&gt;class_dev);</p>
+<p>        if (err)</p>
+<p>                return err;</p>
+<p>        mmc_start_host(host);</p>
+<p>        if (!(host-&gt;pm_flags &amp;MMC_PM_IGNORE_PM_NOTIFY))</p>
+<p>                register_pm_notifier(&amp;host-&gt;pm_notify);</p>
+<p> </p>
+<p>        return 0;</p>
+<p>}</p>
+<p>       Mmc_start_host定义如下：</p>
+<p>void mmc_start_host(structmmc_host *host)</p>
+<p>{</p>
+<p>      mmc_power_off(host);</p>
+<p>       mmc_detect_change(host, 0);</p>
+<p>}</p>
+<p>mmc_power_off中对 ios进行了设置，然后调用 mmc_set_ios(host);</p>
+<p>host-&gt;ios.power_mode = MMC_POWER_OFF;</p>
+<p>       host-&gt;ios.bus_width = MMC_BUS_WIDTH_1;</p>
+<p>       host-&gt;ios.timing =MMC_TIMING_LEGACY;</p>
+<p>       mmc_set_ios(host);</p>
+<p>mmc_set_ios(host) 中的关键语句 host-&gt;ops-&gt;set_ios(host, ios)，实际上在host驱动的probe函数中就已经对host-&gt;ops进行了初始化：</p>
+<p>……</p>
+<p>/*</p>
+<p>         * Setup MMC host structure</p>
+<p>         */</p>
+<p>        mmc-&gt;ops = &amp;msmsdcc_ops;</p>
+<p>……</p>
+<p> </p>
+<p>static const structmmc_host_ops msmsdcc_ops = {<br>        .request        = msmsdcc_request,</p>
+<p>        .set_ios        =msmsdcc_set_ios,</p>
+<p>        .enable_sdio_irq =msmsdcc_enable_sdio_irq,</p>
+<p>};</p>
+<p> </p>
+<p>所以实际上调用的是msmsdcc_set_ios，关于这个函数就不介绍了，可以参考源码，再看 mmc_detect_change(host, 0)，最后一句是：</p>
+<p>      mmc_schedule_delayed_work(&amp;host-&gt;detect,delay);</p>
+<p>实际上就是调用我们前面说的延时函数 mmc_rescan，后面的流程是一样的。</p>
+<ul>
+<li>SDIO设备中断<br>SDIO设备通过SDIO总线与host相连，SDIO总线的DAT[1]即pin8可以作为中断线使用，当SDIO设备向host产生中断时，host会对终端做出相应的动作，在host驱动的probe函数中申请并注册相应的中断函数：</li>
+</ul>
+<p>static int</p>
+<p>msmsdcc_probe(structplatform_device *pdev)</p>
+<p>{<br>……</p>
+<p>  cmd_irqres = platform_get_resource_byname(pdev, IORESOURCE_IRQ,</p>
+<p>                                                 “cmd_irq”);</p>
+<p>        pio_irqres =platform_get_resource_byname(pdev, IORESOURCE_IRQ,</p>
+<p>                                                 “pio_irq”);</p>
+<p>        stat_irqres =platform_get_resource_byname(pdev, IORESOURCE_IRQ,</p>
+<p>                                                  “status_irq”);</p>
+<p>……</p>
+<p>  if (stat_irqres &amp;&amp; !(stat_irqres-&gt;flags &amp;IORESOURCE_DISABLED)) {<br>                unsigned long irqflags =IRQF_SHARED |</p>
+<p>                        (stat_irqres-&gt;flags&amp; IRQF_TRIGGER_MASK);</p>
+<p> </p>
+<p>                host-&gt;stat_irq = stat_irqres-&gt;start;</p>
+<p>                ret = request_irq(host-&gt;stat_irq,</p>
+<p>                                  msmsdcc_platform_status_irq,</p>
+<p>                                 irqflags,</p>
+<p>                                 DRIVER_NAME “ (slot)”,</p>
+<p>                                 host);</p>
+<p>                if (ret) {<br>                        pr_err(“%s: Unableto get slot IRQ %d (%d)\n”,</p>
+<p>                              mmc_hostname(mmc), host-&gt;stat_irq, ret);</p>
+<p>                        goto clk_disable;</p>
+<p>                }</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>当产生相应的中断时调用msmsdcc_platform_status_irq中断处理函数，这个函数的处理流程：</p>
+<p>msmsdcc_platform_status_irq—&gt;</p>
+<p>msmsdcc_check_statusà</p>
+<p>mmc_detect_changeà</p>
+<p>mmc_rescanà</p>
+<p>那么，这里为何调用mmc_rescan呢？因为前面说过mmc_rescanrescan函数主要用于SDIO设备的初始化，如果SDIO设备产生中断不应该是已经初始化可以使用了吗？其实mmc_rescan还有其它的工作，从函数名就能看出来它还有再扫描检测功能，即如果设备产生了中断，mmc_rescan函数一开始就会再次检测所有挂接在该host上的所有SDIO设备，确认是否存在，如果不存在就做相应的释放工作，以确保数据的一致性。如果检测到了新的设备那么它就会创建一个新的mmc_card，初始化并添加该设备。</p>
+<p>中断引发的调用mmc_rescan动作的意义：实现了SDIO设备的热插拔功能。</p>
+<h2 id="WIFI驱动流程（二）"><a href="#WIFI驱动流程（二）" class="headerlink" title="WIFI驱动流程（二）"></a>WIFI驱动流程（二）</h2><p>  此调用流程由dhd_bus_register发起，通过sdio_register_driver注册一个sdio设备驱动，然后通过dhdsdio_probe初始化并注册一个网络设备，网络设备的注册标志着wifi驱动已经成功加载，关于网络设备的创建，初始化和注册后面会有详细介绍，先来理一下上面的调用流程，：</p>
+<p> </p>
+<p>dhd_mudule_init—&gt;             //path:dhd/sys/dhd_linux.c</p>
+<p>Dhd_bus_registerà        // dhd/sys/dhd_sdio.c</p>
+<p>Bcmsdh_registerà         // bcmsdio/sys/bcmsdh_linux.c</p>
+<p>Sdio_function_inità              // bcmsdio/sys/bcmsdh_sdmmc_linux.c</p>
+<p>Sdio_register_driverà  // bcmsdio/sys/bcmsdh_sdmmc_linux.c</p>
+<p>Bcmsdh_sdmmc_probeà//bcmsdio/sys/bcmsdh_sdmmc_linux.c</p>
+<p>Bcmsdh_probeà//bcmsdio/sys/bcmsdh_linux.c</p>
+<p>Bcmsdio_probeà //dhd/sys/dhd_sdio.c</p>
+<p>这里注意上面两个红色标记的函数，sdio_register_driver注册了一个sdio设备，在匹配成功后调用bcmsdh_sdmmc_probe函数，这个函数会调用bcmsdh_probe。这里有一点要注意：浏览bcmsdh_linux.c文件可以看出，在bcmsdh_register函数中，当定义了BCMLXSDMMC宏时，会调用sdio_function_init函数，否则调用driver_register函数：</p>
+<p>int</p>
+<p>bcmsdh_register(bcmsdh_driver_t*driver)</p>
+<p>{<br>        int error = 0;</p>
+<p> </p>
+<p>        drvinfo = *driver; //注意这里，后面会介绍到它的用处</p>
+<p> </p>
+<p>#if defined(BCMPLATFORM_BUS)</p>
+<p>#if defined(BCMLXSDMMC)</p>
+<p>       SDLX_MSG((“Linux Kernel SDIO/MMC Driver\n”));</p>
+<p>        error =sdio_function_init();</p>
+<p>#else</p>
+<p>       SDLX_MSG((“Intel PXA270 SDIO Driver\n”));</p>
+<p>        error =driver_register(&amp;bcmsdh_driver);</p>
+<p>#endif /* defined(BCMLXSDMMC) */</p>
+<p>        return error;</p>
+<p>#endif /*defined(BCMPLATFORM_BUS) */</p>
+<p> </p>
+<p>#if !defined(BCMPLATFORM_BUS)&amp;&amp; !defined(BCMLXSDMMC)</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 0))</p>
+<p>        if (!(error =pci_module_init(&amp;bcmsdh_pci_driver)))</p>
+<p>                return 0;</p>
+<p>#else</p>
+<p>        if (!(error =pci_register_driver(&amp;bcmsdh_pci_driver)))</p>
+<p>                return 0;</p>
+<p>#endif</p>
+<p> </p>
+<p>        SDLX_MSG((“%s: pci_module_initfailed 0x%x\n”, <strong>FUNCTION</strong>, error));</p>
+<p>#endif /* BCMPLATFORM_BUS */</p>
+<p> </p>
+<p>        return error;</p>
+<p>}</p>
+<p>上面的流程中有sdio_function_init的调用出现，所以这里实际上BCMLXSDMMC宏被定义了，bcmsdh_probe函数只是作为一个普通函数被调用，如果不定义该宏，那么bcmsdh_probe函数会被作为驱动匹配设备后第一个调用的函数而被自动调用。</p>
+<p>再看看dhdsdio_probe函数调用的玄机，从上面的bcmsdh_register函数可以看出它的参数被传递给了drvinfo，看看bcmsdh_register的调用地方：</p>
+<p>static bcmsdh_driver_t dhd_sdio = {</p>
+<p>        dhdsdio_probe,</p>
+<p>        dhdsdio_disconnect</p>
+<p>};</p>
+<p> </p>
+<p>int</p>
+<p>dhd_bus_register(void)</p>
+<p>{<br>        DHD_TRACE((“%s: Enter\n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>        return bcmsdh_register(&amp;dhd_sdio);</p>
+<p>}</p>
+<p>上面传递的参数是dhd_sdio结构变量，被用两个函数初始化了，那么哪一个是attach呢？需要找到定义bcmsdh_driver_t结构定义的地方：</p>
+<p>Path：src/include/bcmsdh.h</p>
+<p>/* callback functions */</p>
+<p>typedef struct {<br>        /* attach to device */</p>
+<p>        void *(*attach)(uint16 vend_id, uint16 dev_id, uint16 bus,uint16 slot,</p>
+<p>                       uint16 func, uint bustype, void * regsva, osl_t * osh,</p>
+<p>                       void * param);</p>
+<p>        /* detach from device */</p>
+<p>        void (*detach)(void *ch);</p>
+<p>} bcmsdh_driver_t;</p>
+<p>没错，就是第一个dhdsdio_probe函数，再来看看什么地方调用了这个attach函数：</p>
+<p>Path:bcmsdio/sys/bcmsdh_linux.c</p>
+<p> </p>
+<p>#ifndef BCMLXSDMMC</p>
+<p>static</p>
+<p>#endif /* BCMLXSDMMC */</p>
+<p>int bcmsdh_probe(struct device*dev)</p>
+<p>{<br>……</p>
+<p>if (!(sdhc-&gt;ch = drvinfo.attach((vendevid&gt;&gt; 16),</p>
+<p>                                        (vendevid &amp; 0xFFFF), 0, 0, 0, 0,</p>
+<p>                                        (void*)regs, NULL, sdh))) {<br>                SDLX_MSG((“%s: device attachfailed\n”, <strong>FUNCTION</strong>));</p>
+<p>                goto err;</p>
+<p>        }</p>
+<p> </p>
+<p>        return 0;</p>
+<p>……</p>
+<p>}</p>
+<p>红色部分的函数调用是drvinfo.attach，就是上面传递过来的dhdsdio_probe函数了，仔细阅读你会发现上面那个bcmsdh_driver_t结构体定义的地方有个说明，即把该结构的成员函数当做callback函数来使用，这就是它的用意所在。</p>
+<p>1.3.4       网络设备注册流程<br>上面是网络设备注册流程，在dhdsdio_probe函数中先后对dhd_attach和dhd_net_attach两个函数调用，dhd_attach主要用于创建和初始化dhd_info_t和net_device两个结构变量，然后调用dhd_add_if将创建的net_device变量添加到dhd_info_t变量的iflist列表中（支持多接口）。</p>
+<p>Dhd_attach的流程如下：</p>
+<p>dhd_pub_t *</p>
+<p>dhd_attach(osl_t *osh, structdhd_bus *bus, uint bus_hdrlen)</p>
+<p>{<br>        dhd_info_t *dhd = NULL;</p>
+<p>        struct net_device *net = NULL;</p>
+<p> </p>
+<p>……</p>
+<p>        /* Allocate etherdev, including spacefor private structure */</p>
+<p>        if (!(net = alloc_etherdev(sizeof(dhd)))) {   //网络设备的创建</p>
+<p>                DHD_ERROR((“%s: OOM -alloc_etherdev\n”, <strong>FUNCTION</strong>));</p>
+<p>                goto fail;</p>
+<p>        }</p>
+<p>        dhd_state |=DHD_ATTACH_STATE_NET_ALLOC;</p>
+<p> </p>
+<p> </p>
+<p>        /* Allocate primary dhd_info */</p>
+<p>        if (!(dhd = MALLOC(osh, sizeof(dhd_info_t)))) { //dhd的创建</p>
+<p>                DHD_ERROR((“%s: OOM -alloc dhd_info\n”, <strong>FUNCTION</strong>));</p>
+<p>                goto fail;</p>
+<p>        }</p>
+<p>……</p>
+<p>/* Set network interface name if it was provided as moduleparameter */</p>
+<p>        if (iface_name[0]) {<br>                int len;</p>
+<p>                char ch;</p>
+<p>                strncpy(net-&gt;name,iface_name, IFNAMSIZ);</p>
+<p>                net-&gt;name[IFNAMSIZ - 1] = 0;</p>
+<p>                len = strlen(net-&gt;name);</p>
+<p>                ch = net-&gt;name[len - 1];</p>
+<p>                if ((ch &gt; ‘9’ || ch &lt;’0’) &amp;&amp; (len &lt; IFNAMSIZ - 2))</p>
+<p>                        strcat(net-&gt;name,”%d”);</p>
+<p>        }</p>
+<p> </p>
+<p>        if (dhd_add_if(dhd, 0, (void *)net, net-&gt;name, NULL, 0, 0)== DHD_BAD_IF)   //将前面创建的net添加到iflist列表中</p>
+<p>                goto fail;</p>
+<p>        dhd_state |= DHD_ATTACH_STATE_ADD_IF;</p>
+<p>……</p>
+<p>Memcpy(netdev_priv(net), &amp;dhd, sizeof(dhd)); //关联dhd和net</p>
+<p> </p>
+<p>//dhd的初始化工作</p>
+<p>}</p>
+<p>Dhd_add_if的添加网络接口流程：</p>
+<p>int</p>
+<p>dhd_add_if(dhd_info_t *dhd, int ifidx, void *handle, char *name,</p>
+<p>        uint8 *mac_addr,uint32 flags, uint8 bssidx)</p>
+<p>{<br>        dhd_if_t *ifp;</p>
+<p> </p>
+<p>        DHD_TRACE((“%s: idx %d,handle-&gt;%p\n”, <strong>FUNCTION</strong>, ifidx, handle));</p>
+<p> </p>
+<p>        ASSERT(dhd &amp;&amp; (ifidx &lt;DHD_MAX_IFS));</p>
+<p> </p>
+<p>        ifp =dhd-&gt;iflist[ifidx];</p>
+<p>        if (ifp != NULL) {<br>                if (ifp-&gt;net != NULL) {<br>                       netif_stop_queue(ifp-&gt;net);</p>
+<p>                       unregister_netdev(ifp-&gt;net);</p>
+<p>                        free_netdev(ifp-&gt;net);   //如果已经存在，释放net成员</p>
+<p>                }</p>
+<p>        } else</p>
+<p>                if ((ifp = MALLOC(dhd-&gt;pub.osh,sizeof(dhd_if_t))) == NULL) {</p>
+<p>                       DHD_ERROR((“%s: OOM - dhd_if_t\n”, <strong>FUNCTION</strong>));      //否则，创建一个dhd_if_t结构变量</p>
+<p>                        return -ENOMEM;</p>
+<p>                }</p>
+<p> </p>
+<p>        memset(ifp, 0, sizeof(dhd_if_t));</p>
+<p>        ifp-&gt;info = dhd;      //进行系列初始化，添加工作</p>
+<p>       dhd-&gt;iflist[ifidx] = ifp;</p>
+<p>       strncpy(ifp-&gt;name, name, IFNAMSIZ);</p>
+<p>        ifp-&gt;name[IFNAMSIZ] = ‘\0’;</p>
+<p>        if (mac_addr != NULL)</p>
+<p>                memcpy(&amp;ifp-&gt;mac_addr, mac_addr,ETHER_ADDR_LEN);</p>
+<p> </p>
+<p>        if (handle == NULL) {<br>                ifp-&gt;state = DHD_IF_ADD;</p>
+<p>                ifp-&gt;idx = ifidx;</p>
+<p>                ifp-&gt;bssidx = bssidx;</p>
+<p>               ASSERT(&amp;dhd-&gt;thr_sysioc_ctl.thr_pid &gt;= 0);</p>
+<p>               up(&amp;dhd-&gt;thr_sysioc_ctl.sema);</p>
+<p>        } else</p>
+<p>                ifp-&gt;net = (struct net_device *)handle;             //handle即一个net_device变量</p>
+<p> </p>
+<p>        return 0;</p>
+<p>}</p>
+<p>这样，一个net_device网路设备就被添加到了接口管理列表中了，但是这是网路设备还没有完成初始化和注册工作，bcmsdio_probe函数随后对dhd_net_attach的调用完成了这个操作：</p>
+<p>int</p>
+<p>dhd_net_attach(dhd_pub_t*dhdp, int ifidx)</p>
+<p>{<br>        dhd_info_t <em>dhd = (dhd_info_t</em>)dhdp-&gt;info;</p>
+<p>        struct net_device *net = NULL;</p>
+<p>        int err = 0;</p>
+<p>        uint8 temp_addr[ETHER_ADDR_LEN] = {0x00, 0x90, 0x4c, 0x11, 0x22, 0x33 };</p>
+<p> </p>
+<p>        DHD_TRACE((“%s: ifidx %d\n”,<strong>FUNCTION</strong>, ifidx));</p>
+<p> </p>
+<p>        ASSERT(dhd &amp;&amp;dhd-&gt;iflist[ifidx]);</p>
+<p> </p>
+<p>        net = dhd-&gt;iflist[ifidx]-&gt;net;              //首先从刚才添加的接口列表中取出net，然后进行下面的系列初始化工作</p>
+<p>        ASSERT(net);</p>
+<p>//根据内核版本信息，选择对net成员函数的初始化方式，假设是2.6.30的版本</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 31))</p>
+<p>        ASSERT(!net-&gt;open);</p>
+<p>        net-&gt;get_stats = dhd_get_stats;</p>
+<p>        net-&gt;do_ioctl =dhd_ioctl_entry;</p>
+<p>       net-&gt;hard_start_xmit = dhd_start_xmit;</p>
+<p>       net-&gt;set_mac_address = dhd_set_mac_address;</p>
+<p>       net-&gt;set_multicast_list = dhd_set_multicast_list;</p>
+<p>        net-&gt;open =net-&gt;stop = NULL;</p>
+<p>#else</p>
+<p>        ASSERT(!net-&gt;netdev_ops);</p>
+<p>        net-&gt;netdev_ops = &amp;dhd_ops_virt;</p>
+<p>#endif</p>
+<p> </p>
+<p>        /* Ok, link into the network layer…*/</p>
+<p>        if (ifidx == 0) {<br>                /*</p>
+<p>                 * device functions for theprimary interface only</p>
+<p>                 */</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 31))</p>
+<p>                net-&gt;open = dhd_open;</p>
+<p>               net-&gt;stop = dhd_stop;</p>
+<p>#else</p>
+<p>                net-&gt;netdev_ops = &amp;dhd_ops_pri;</p>
+<p>#endif</p>
+<p>        } else {<br>                /*</p>
+<p>                 * We have to use the primaryMAC for virtual interfaces</p>
+<p>                                                                                                                          3417,1-8      66%</p>
+<p>                 */</p>
+<p>                memcpy(temp_addr,dhd-&gt;iflist[ifidx]-&gt;mac_addr, ETHER_ADDR_LEN);</p>
+<p>                /*</p>
+<p>                 * Android sets the locallyadministered bit to indicate that this is a</p>
+<p>                 * portable hotspot.  This will not work in simultaneous AP/STAmode,</p>
+<p>                 * nor with P2P.  Need to set the Donlge’s MAC address, andthen use that.</p>
+<p>                 */</p>
+<p>                if(!memcmp(temp_addr, dhd-&gt;iflist[0]-&gt;mac_addr,</p>
+<p>                        ETHER_ADDR_LEN)) {</p>
+<p>                        DHD_ERROR((“%sinterface [%s]: set locally administered bit in MAC\n”,</p>
+<p>                        <strong>func</strong>,net-&gt;name));</p>
+<p>                        temp_addr[0] |= 0x02;</p>
+<p>                }</p>
+<p>        }</p>
+<p> </p>
+<p>       net-&gt;hard_header_len = ETH_HLEN + dhd-&gt;pub.hdrlen;</p>
+<p>#if LINUX_VERSION_CODE &gt;=KERNEL_VERSION(2, 6, 24)</p>
+<p>        net-&gt;ethtool_ops = &amp;dhd_ethtool_ops;</p>
+<p>#endif /* LINUX_VERSION_CODE&gt;= KERNEL_VERSION(2, 6, 24) */</p>
+<p> </p>
+<p>#ifdefined(CONFIG_WIRELESS_EXT)</p>
+<p>#if WIRELESS_EXT &lt; 19</p>
+<p>        net-&gt;get_wireless_stats = dhd_get_wireless_stats;</p>
+<p>#endif /* WIRELESS_EXT &lt; 19*/</p>
+<p>#if WIRELESS_EXT &gt; 12</p>
+<p>        net-&gt;wireless_handlers = (struct iw_handler_def*)&amp;wl_iw_handler_def;   //这里的初始化工作很重要，之后的ioctl流程会涉及到对它的使用</p>
+<p>#endif /* WIRELESS_EXT &gt; 12*/</p>
+<p>#endif /*defined(CONFIG_WIRELESS_EXT) */</p>
+<p> </p>
+<p>        dhd-&gt;pub.rxsz =DBUS_RX_BUFFER_SIZE_DHD(net);</p>
+<p>                //设置设备地址</p>
+<p>        memcpy(net-&gt;dev_addr, temp_addr, ETHER_ADDR_LEN);</p>
+<p> </p>
+<p>        if ((err =register_netdev(net)) != 0) {       //注册net</p>
+<p>                DHD_ERROR((“couldn’tregister the net device, err %d\n”, err));</p>
+<p>                goto fail;</p>
+<p>        }</p>
+<p>       </p>
+<p> </p>
+<p>……</p>
+<p>}</p>
+<p>到这里net网络设备就被注册到系统中了，设备准备好了就好对设备进行访问了。</p>
+
+      
+    </div>
+
+    
+    
+    
+    <div>
+      
+    </div>
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%BA%8C%E7%AF%87%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%BA%8C%E7%AF%87%EF%BC%89/" class="post-title-link" itemprop="url">信号幽灵wifi（第二篇）</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-06 18:30:06 / 修改时间：18:36:27" itemprop="dateCreated datePublished" datetime="2021-03-06T18:30:06+08:00">2021-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%BA%8C%E7%AF%87%EF%BC%89/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%BA%8C%E7%AF%87%EF%BC%89/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="Wifi模块解析和启动流程"><a href="#Wifi模块解析和启动流程" class="headerlink" title="Wifi模块解析和启动流程"></a>Wifi模块解析和启动流程</h1><ul>
+<li>框架分析<br>WIFI整体框架如图所示：</li>
+</ul>
+<p>首先，用户程序使用WifiManager类来管理Wifi模块，它能够获得Wifi模块的状态，配置和控制Wifi模块，而所有这些操作都要依赖 Wifiservice类来实现。</p>
+<p> WifiService和WifiMonitor类是Wifi框架的核心，如图所示。下面先来看看WifiService是什么时候，怎么被创建和初始化 的。</p>
+<p> 在systemServer启动之后，它会创建一个 ConnectivityServer对象，这个对象的构造函数会创建一个WifiService的实例，代码如下所示：</p>
+<p> </p>
+<p>framework/base/services/java/com/android/server/ConnectivityService.java</p>
+<p>{<br>……</p>
+<p>case ConnectivityManager.TYPE_WIFI:</p>
+<p>               if(DBG) Slog.v(TAG, “Starting Wifi Service.”);</p>
+<p>               WifiStateTrackerwst = new WifiStateTracker(context,mHandler);                            //创建WifiStateTracker实例</p>
+<p>               WifiService wifiService = newWifiService(context,wst);//创建WifiService实例</p>
+<p>               ServiceManager.addService(Context.WIFI_SERVICE,wifiService);           //向服务管理系统添加Wifi服务</p>
+<p>               wifiService.startWifi();    //启动Wifi</p>
+<p>               mNetTrackers[ConnectivityManager.TYPE_WIFI]= wst;</p>
+<p>               wst.startMonitoring(); //启动WifiMonitor中的WifiThread线程</p>
+<p>……</p>
+<p>}</p>
+<p>       WifiService的主要工作：WifiMonitor和Wpa_supplicant的启动和关闭，向Wpa_supplicant发送命令。</p>
+<p>       WifiMonitor的主要工作：阻塞监听并接收来自Wpa_supplicant的消息，然后发送给WifiStateTracker。</p>
+<p>      上面两个线程通过AF_UNIX套接字和Wpa_supplicant通信，在通信过程中有两种连接方式：控制连接和监听连接。它们创建代码如下：</p>
+<p>ctrl_conn =wpa_ctrl_open(ifname);</p>
+<p>.. .. ..</p>
+<p> monitor_conn = wpa_ctrl_open(ifname);</p>
+<h1 id="Wifi启动流程"><a href="#Wifi启动流程" class="headerlink" title="Wifi启动流程"></a>Wifi启动流程</h1><ul>
+<li>使能Wifi</li>
+</ul>
+<p>      要想使用Wifi模块，必须首先使能Wifi，当你第一次按下Wifi使能按钮时，WirelessSettings会实例化一个WifiEnabler 对象，实例化代码如下：</p>
+<p>packages/apps/settings/src/com/android/settings/WirelessSettings.java</p>
+<p>protected void onCreate(Bundle savedInstanceState) {<br>       super.onCreate(savedInstanceState);</p>
+<p>……</p>
+<p>             CheckBoxPreferencewifi = (CheckBoxPreference) findPreference(KEY_TOGGLE_WIFI);</p>
+<p>             mWifiEnabler=new WifiEnabler(this, wifi);</p>
+<p>……</p>
+<p>}</p>
+<p>       WifiEnabler类的定义大致如下，它实现了一个监听接口，当WifiEnabler对象被初始化后，它监听到你按键的动作，会调用响应函数 onPreferenceChange（），这个函数会调用WifiManager的setWifiEnabled（）函数。</p>
+<p>public class WifiEnabler implementsPreference.OnPreferenceChangeListener{<br>……</p>
+<p>public boolean onPreferenceChange(Preference preference,Objectvalue) {<br>        booleanenable = (Boolean)value;</p>
+<p>……</p>
+<p>if (mWifiManager.setWifiEnabled(enable)) {<br>               mCheckBox.setEnabled(false);</p>
+<p>……</p>
+<p>}</p>
+<p>……</p>
+<p>}</p>
+<p>       我们都知道Wifimanager只是个服务代理，所以它会调用WifiService的setWifiEnabled（）函数，而这个函数会调用 sendEnableMessage（）函数，了解android消息处理机制的都知道，这个函数最终会给自己发送一个 MESSAGE_ENABLE_WIFI的消息，被WifiService里面定义的handlermessage()函数处理，会调用 setWifiEnabledBlocking（）函数。下面是调用流程：</p>
+<p>mWifiEnabler.onpreferencechange()=&gt;mWifiManage.setWifienabled()=&gt;mWifiService.setWifiEnabled()=&gt;mWifiService.sendEnableMessage()=&gt;mWifiService.handleMessage()=&gt;mWifiService.setWifiEnabledBlocking().</p>
+<p>在 setWifiEnabledBlocking()函数中主要做如下工作：加载Wifi驱动，启动wpa_supplicant，注册广播接收器，启动 WifiThread监听线程。代码如下：</p>
+<p>……</p>
+<p>if (enable) {<br>           if(!mWifiStateTracker.loadDriver()) {<br>               Slog.e(TAG,”Failed toload Wi-Fi driver.”);</p>
+<p>               setWifiEnabledState(WIFI_STATE_UNKNOWN,uid);</p>
+<p>               return false;</p>
+<p>           }</p>
+<p>           if(!mWifiStateTracker.startSupplicant()) {<br>               mWifiStateTracker.unloadDriver();</p>
+<p>               Slog.e(TAG, “Failed tostart supplicant daemon.”);</p>
+<p>               setWifiEnabledState(WIFI_STATE_UNKNOWN, uid);</p>
+<p>               return false;</p>
+<p>           }</p>
+<p> </p>
+<p>           registerForBroadcasts();</p>
+<p>           mWifiStateTracker.startEventLoop();</p>
+<p>……</p>
+<p> 至此，Wifi使能结束，自动进入扫描阶段。</p>
+<h1 id="扫描AP"><a href="#扫描AP" class="headerlink" title="扫描AP"></a>扫描AP</h1><p>      当驱动加载成功后，如果配置文件的AP_SCAN = 1，扫描会自动开始，WifiMonitor将会从supplicant收到一个消息EVENT_DRIVER_STATE_CHANGED，调用 handleDriverEvent（），然后调用mWifiStateTracker.notifyDriverStarted()，该函数向消息队列 添加EVENT_DRIVER_STATE_CHANGED，handlermessage()函数处理消息时调用scan()函数，并通过 WifiNative将扫描命令发送到wpa_supplicant。</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiMonitor.java</p>
+<p>private void handleDriverEvent(Stringstate) {<br>           if(state == null) {<br>               return;</p>
+<p>           }</p>
+<p>           if(state.equals(“STOPPED”)) {<br>               mWifiStateTracker.notifyDriverStopped();</p>
+<p>           }else if (state.equals(“STARTED”)) {<br>               mWifiStateTracker.notifyDriverStarted();</p>
+<p>           }else if (state.equals(“HANGED”)) {<br>               mWifiStateTracker.notifyDriverHung();</p>
+<p>           }</p>
+<p>       }</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiStateTracker.java</p>
+<p>case EVENT_DRIVER_STATE_CHANGED:</p>
+<p>        </p>
+<p>               switch(msg.arg1) {<br>               case DRIVER_STARTED:</p>
+<p>                   /**</p>
+<p>                    *Set the number of allowed radio channels according</p>
+<p>                    *to the system setting, since it gets reset by the</p>
+<p>                    *driver upon changing to the STARTED state.</p>
+<p>                    */</p>
+<p>                   setNumAllowedChannels();</p>
+<p>                   synchronized(this) {<br>                       if(mRunState == RUN_STATE_STARTING) {<br>                           mRunState= RUN_STATE_RUNNING;</p>
+<p>                           if(!mIsScanOnly) {<br>                               reconnectCommand();</p>
+<p>                           }else {<br>                               // In somesituations, supplicant needs to be kickstarted to</p>
+<p>                               // start thebackground scanning</p>
+<p>                               scan(true);</p>
+<p>                           }</p>
+<p>                       }</p>
+<p>                   }</p>
+<p>                   break;             </p>
+<p>上面是启动Wifi 时，自动进行的AP的扫描，用户当然也可以手动扫描AP，这部分实现在WifiService里面，WifiService通过startScan()接 口函数发送扫描命令到supplicant。</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiStateTracker.java</p>
+<p>public boolean startScan(booleanforceActive) {<br>       enforceChangePermission();</p>
+<p> </p>
+<p>       switch(mWifiStateTracker.getSupplicantState()) {<br>           caseDISCONNECTED:</p>
+<p>           caseINACTIVE:</p>
+<p>           caseSCANNING:</p>
+<p>           caseDORMANT:</p>
+<p>               break;</p>
+<p>           default:</p>
+<p>               mWifiStateTracker.setScanResultHandling(</p>
+<p>                       WifiStateTracker.SUPPL_SCAN_HANDLING_LIST_ONLY);</p>
+<p>               break;</p>
+<p>       }</p>
+<p>       return mWifiStateTracker.scan(forceActive);</p>
+<p>    }</p>
+<p>       然后下面的流程同上面的自动扫描，我们来分析一下手动扫描从哪里开始的。我们应该知道手动扫描是通过菜单键的扫描键来响应的，而响应该动作的应该是 WifiSettings类中Scanner类的handlerMessage()函数，它调用WifiManager的 startScanActive()，这才调用WifiService的startScan()。</p>
+<p>packages/apps/Settings/src/com/android/settings/wifiwifisettings.java</p>
+<p>public boolean onCreateOptionsMenu(Menu menu) {<br>       menu.add(Menu.NONE,MENU_ID_SCAN, 0, R.string.wifi_menu_scan)</p>
+<p>               .setIcon(R.drawable.ic_menu_scan_network);</p>
+<p>       menu.add(Menu.NONE,MENU_ID_ADVANCED, 0, R.string.wifi_menu_advanced)</p>
+<p>               .setIcon(android.R.drawable.ic_menu_manage);</p>
+<p>       returnsuper.onCreateOptionsMenu(menu);</p>
+<p>    }</p>
+<p>       当按下菜单键时，WifiSettings就会调用这个函数绘制菜单。如果选择扫描按钮，WifiSettings会调用 onOptionsItemSelected()。</p>
+<p>packages/apps/Settings/src/com/android/settings/wifiwifisettings.java</p>
+<p>public booleanonOptionsItemSelected(MenuItem item) {<br>       switch (item.getItemId()){<br>           caseMENU_ID_SCAN:</p>
+<p>               if(mWifiManager.isWifiEnabled()) {<br>                   mScanner.resume();</p>
+<p>               }</p>
+<p>               return true;</p>
+<p>           caseMENU_ID_ADVANCED:</p>
+<p>               startActivity(new Intent(this,AdvancedSettings.class));</p>
+<p>               return true;</p>
+<p>       }</p>
+<p>       returnsuper.onOptionsItemSelected(item);</p>
+<p>}</p>
+<p> </p>
+<p>private class Scanner extends Handler {<br>       private int mRetry = 0;</p>
+<p> </p>
+<p>       void resume() {<br>           if (!hasMessages(0)) {</p>
+<p>               sendEmptyMessage(0);</p>
+<p>           }</p>
+<p>       }</p>
+<p> </p>
+<p>       void pause() {<br>           mRetry= 0;</p>
+<p>           mAccessPoints.setProgress(false);</p>
+<p>           removeMessages(0);</p>
+<p>       }</p>
+<p> </p>
+<p>       @Override</p>
+<p>       public voidhandleMessage(Message message) {<br>           if(mWifiManager.startScanActive()){<br>               mRetry = 0;</p>
+<p>           }else if (++mRetry &gt;= 3) {<br>               mRetry = 0;</p>
+<p>               Toast.makeText(WifiSettings.this,R.string.wifi_fail_to_scan,</p>
+<p>                       Toast.LENGTH_LONG).show();</p>
+<p>               return;</p>
+<p>           }</p>
+<p>           mAccessPoints.setProgress(mRetry!= 0);</p>
+<p>           sendEmptyMessageDelayed(0, 6000);</p>
+<p>       }</p>
+<p>    }</p>
+<p>这里的mWifiManager.startScanActive()就会调用WifiService里 的startScan（）函数，下面的流程和上面的一样，这里不赘述。</p>
+<p>当supplicant完成了这个扫描命令后，它会发送一个消息给上 层，提醒他们扫描已经完成，WifiMonitor会接收到这消息，然后再发送给WifiStateTracker。</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiMonitor.java</p>
+<p>void handleEvent(int event, String remainder) {<br>           switch (event) {<br>               caseDISCONNECTED:</p>
+<p>                   handleNetworkStateChange(NetworkInfo.DetailedState.DISCONNECTED,remainder);</p>
+<p>                   break;</p>
+<p> </p>
+<p>               case CONNECTED:</p>
+<p>                   handleNetworkStateChange(NetworkInfo.DetailedState.CONNECTED,remainder);</p>
+<p>                   break;</p>
+<p> </p>
+<p>               case SCAN_RESULTS:</p>
+<p>                   mWifiStateTracker.notifyScanResultsAvailable();</p>
+<p>                   break;</p>
+<p> </p>
+<p>               case UNKNOWN:</p>
+<p>                   break;</p>
+<p>            }</p>
+<p>        }</p>
+<p>WifiStateTracker将会广播SCAN_RESULTS_AVAILABLE_ACTION消息：</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiStateTracker.java</p>
+<p>public voidhandleMessage(Message msg) {<br>        Intent intent;</p>
+<p>……</p>
+<p>case EVENT_SCAN_RESULTS_AVAILABLE:</p>
+<p>               if(ActivityManagerNative.isSystemReady()) {<br>                   mContext.sendBroadcast(newIntent(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));</p>
+<p>               }</p>
+<p>               sendScanResultsAvailable();</p>
+<p>               /**</p>
+<p>                * On receiving the first scanresults after connecting to</p>
+<p>                * the supplicant, switch scanmode over to passive.</p>
+<p>                */</p>
+<p>               setScanMode(false);</p>
+<p>               break;</p>
+<p>……</p>
+<p>｝</p>
+<p>       由于WifiSettings类注册了intent，能够处理SCAN_RESULTS_AVAILABLE_ACTION消息，它会调用 handleEvent()，调用流程如下所示。</p>
+<p>WifiSettings.handleEvent()=&gt;WifiSettings.updateAccessPoints() =&gt; mWifiManager.getScanResults()=&gt; mService.getScanResults()=&gt; mWifiStateTracker.scanResults() =&gt;WifiNative.scanResultsCommand()……</p>
+<p>将 获取AP列表的命令发送到supplicant，然后supplicant通过Socket发送扫描结果，由上层接收并显示。这和前面的消息获取流程基本 相同。</p>
+<h1 id="配置，连接AP"><a href="#配置，连接AP" class="headerlink" title="配置，连接AP"></a>配置，连接AP</h1><p>当用户选择一个活跃的AP时，WifiSettings响应打开一个对话框来配 置AP，比如加密方法和连接AP的验证模式。配置好AP后，WifiService添加或更新网络连接到特定的AP。</p>
+<p>packages/apps/settings/src/com/android/settings/wifi/WifiSetttings.java</p>
+<p>public booleanonPreferenceTreeClick(PreferenceScreen screen,Preference preference) {<br>       if (preference instanceofAccessPoint) {<br>           mSelected= (AccessPoint) preference;</p>
+<p>           showDialog(mSelected, false);</p>
+<p>       } else if (preference ==mAddNetwork) {<br>           mSelected= null;</p>
+<p>           showDialog(null,true);</p>
+<p>       } else if (preference ==mNotifyOpenNetworks) {<br>           Secure.putInt(getContentResolver(),</p>
+<p>                   Secure.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,</p>
+<p>                   mNotifyOpenNetworks.isChecked()? 1 : 0);</p>
+<p>       } else {<br>           returnsuper.onPreferenceTreeClick(screen, preference);</p>
+<p>       }</p>
+<p>       return true;</p>
+<p>    }</p>
+<p>       配置好以后，当按下“Connect Press”时，WifiSettings通过发送LIST_NETWORK命令到supplicant来检查该网络是否配置。如果没有该网络或没有配置 它，WifiService调用addorUpdateNetwork（）函数来添加或更新网络，然后发送命令给supplicant，连接到这个网络。 下面是从响应连接按钮到WifiService发送连接命令的代码：</p>
+<p>packages/apps/settings/src/com/android/settings/wifi/WifiSetttings.java</p>
+<p>public void onClick(DialogInterfacedialogInterface, int button) {<br>       if (button ==WifiDialog.BUTTON_FORGET &amp;&amp; mSelected != null) {<br>           forget(mSelected.networkId);</p>
+<p>       } else if (button ==WifiDialog.BUTTON_SUBMIT &amp;&amp; mDialog !=null) {<br>           WifiConfigurationconfig = mDialog.getConfig();</p>
+<p> </p>
+<p>           if(config == null) {<br>               if (mSelected != null&amp;&amp; !requireKeyStore(mSelected.getConfig())) {<br>                   connect(mSelected.networkId);</p>
+<p>               }</p>
+<p>           }else if (config.networkId != -1) {<br>               if (mSelected != null) {<br>                   mWifiManager.updateNetwork(config);</p>
+<p>                   saveNetworks();</p>
+<p>               }</p>
+<p>           }else {<br>               intnetworkId =mWifiManager.addNetwork(config);</p>
+<p>               if (networkId != -1) {<br>                   mWifiManager.enableNetwork(networkId,false);</p>
+<p>                   config.networkId =networkId;</p>
+<p>                   if (mDialog.edit || requireKeyStore(config)){<br>                       saveNetworks();</p>
+<p>                   } else {<br>                       connect(networkId);</p>
+<p>                   }</p>
+<p>               }</p>
+<p>           }</p>
+<p>       }</p>
+<p>    }</p>
+<p>Frameworks\base\wifi\java\android\net\wifi\WifiManager.java</p>
+<p>public intupdateNetwork(WifiConfiguration config) {<br>        if(config == null ||config.networkId &lt; 0) {<br>           return-1;</p>
+<p>        }</p>
+<p>        returnaddOrUpdateNetwork(config);</p>
+<p>}</p>
+<p>private intaddOrUpdateNetwork(WifiConfiguration config) {<br>       try {<br>           return mService.addOrUpdateNetwork(config);</p>
+<p>       } catch (RemoteExceptione) {<br>           return-1;</p>
+<p>       }</p>
+<p>    }</p>
+<p> </p>
+<p>WifiService.addOrUpdateNetwork()通过调用mWifiStateTracker.setNetworkVariable()将连接命令发送到Wpa_supplicant。</p>
+<h1 id="获取IP地址"><a href="#获取IP地址" class="headerlink" title="获取IP地址"></a>获取IP地址</h1><p>当连接到supplicant后，WifiMonitor就会通知WifiStateTracker。</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiMonitor.java</p>
+<p>Public void Run(){<br>if (connectToSupplicant()) {<br>               // Send a message indicatingthat it is now possible to send commands</p>
+<p>               // tothe supplicant</p>
+<p>               mWifiStateTracker.notifySupplicantConnection();</p>
+<p>           }else {<br>               mWifiStateTracker.notifySupplicantLost();</p>
+<p>               return;</p>
+<p>           }</p>
+<p>……</p>
+<p>}</p>
+<p>WifiStateTracker 发送EVENT_SUPPLICANT_CONNECTION消息到消息队列，这个消息有自己的handlermessage()函数处理，它会启动一个 DHCP线程，而这个线程会一直等待一个消息事件，来启动DHCP协议分配IP地址。</p>
+<p>frameworks/base/wifi/java/android/net/wifi/WifiStateTracker.java</p>
+<p>void notifySupplicantConnection() {<br>       sendEmptyMessage(EVENT_SUPPLICANT_CONNECTION);</p>
+<p>}</p>
+<p> </p>
+<p>public void handleMessage(Message msg) {<br>       Intent intent;</p>
+<p> </p>
+<p>       switch (msg.what) {<br>           caseEVENT_SUPPLICANT_CONNECTION:</p>
+<p>            ……</p>
+<p>            HandlerThread dhcpThread =newHandlerThread(“DHCP Handler Thread”);</p>
+<p>               dhcpThread.start();</p>
+<p>               mDhcpTarget =newDhcpHandler(dhcpThread.getLooper(), this);</p>
+<p>……</p>
+<p>……</p>
+<p>}</p>
+<p>当 Wpa_supplicant连接到AP后，它会发送一个消息给上层来通知连接成功，WifiMonitor会接受到这个消息并上报给 WifiStateTracker。</p>
+<p>Frameworks/base/wifi/java/android/net/wifi/WifiMonitor.java</p>
+<p>void handleEvent(int event, String remainder) {<br>           switch(event) {<br>               caseDISCONNECTED:</p>
+<p>                   handleNetworkStateChange(NetworkInfo.DetailedState.DISCONNECTED,remainder);</p>
+<p>                   break;</p>
+<p> </p>
+<p>               caseCONNECTED:</p>
+<p>                   handleNetworkStateChange(NetworkInfo.DetailedState.CONNECTED,remainder);</p>
+<p>                   break;</p>
+<p>               ……</p>
+<p>}</p>
+<p> </p>
+<p>private void handleNetworkStateChange(NetworkInfo.DetailedStatenewState, String data) {<br>        StringBSSID = null;</p>
+<p>        intnetworkId = -1;</p>
+<p>        if(newState ==NetworkInfo.DetailedState.CONNECTED) {<br>           Matchermatch = mConnectedEventPattern.matcher(data);</p>
+<p>           if(!match.find()) {<br>               if(Config.LOGD) Log.d(TAG, “Could not find BSSID in CONNECTEDeventstring”);</p>
+<p>           }else {<br>               BSSID= match.group(1);</p>
+<p>               try{<br>                   networkId= Integer.parseInt(match.group(2));</p>
+<p>               }catch (NumberFormatException e) {<br>                   networkId= -1;</p>
+<p>               }</p>
+<p>            }</p>
+<p>        }</p>
+<p>        mWifiStateTracker.notifyStateChange(newState,BSSID,networkId);</p>
+<p>}</p>
+<p>      </p>
+<p>void notifyStateChange(DetailedState newState, StringBSSID, intnetworkId) {<br>        Messagemsg =Message.obtain(</p>
+<p>           this,EVENT_NETWORK_STATE_CHANGED,</p>
+<p>           newNetworkStateChangeResult(newState, BSSID, networkId));</p>
+<p>       msg.sendToTarget();</p>
+<p>    }</p>
+<p> </p>
+<p>caseEVENT_NETWORK_STATE_CHANGED:</p>
+<p>……</p>
+<p>configureInterface();</p>
+<p>……</p>
+<p> </p>
+<p>private void configureInterface() {<br>       checkPollTimer();</p>
+<p>        mLastSignalLevel = -1;</p>
+<p>        if(!mUseStaticIp){          //使用DHCP线程动态IP</p>
+<p>           if(!mHaveIpAddress &amp;&amp; !mObtainingIpAddress) {<br>               mObtainingIpAddress= true;</p>
+<p> </p>
+<p>                                  //发送启动DHCP线程获取IP</p>
+<p>               mDhcpTarget.sendEmptyMessage(EVENT_DHCP_START);</p>
+<p>            }</p>
+<p>        } else{        //使用静态IP，IP信息从mDhcpInfo中获取</p>
+<p>           intevent;</p>
+<p>           if(NetworkUtils.configureInterface(mInterfaceName,mDhcpInfo)) {<br>               mHaveIpAddress= true;</p>
+<p>               event= EVENT_INTERFACE_CONFIGURATION_SUCCEEDED;</p>
+<p>               if(LOCAL_LOGD) Log.v(TAG, “Static IP configurationsucceeded”);</p>
+<p>           }else {<br>               mHaveIpAddress= false;</p>
+<p>               event= EVENT_INTERFACE_CONFIGURATION_FAILED;</p>
+<p>               if(LOCAL_LOGD) Log.v(TAG, “Static IP configuration failed”);</p>
+<p>            }</p>
+<p>           sendEmptyMessage(event);          //发送IP获得成功消息事件</p>
+<p>        }</p>
+<p>    }</p>
+<p>             DhcpThread获取EVENT_DHCP_START消息事件后，调用handleMessage（）函数，启动DHCP获取IP地址的服务。</p>
+<p>public void handleMessage(Message msg) {<br>           intevent;</p>
+<p>switch (msg.what) {<br>               caseEVENT_DHCP_START:</p>
+<p> </p>
+<p>……</p>
+<p>Log.d(TAG, “DhcpHandler: DHCP requeststarted”);</p>
+<p>//启动一个DHCPclient的精灵进 程，为mInterfaceName请求分配一个IP地//址</p>
+<p>    if (NetworkUtils.runDhcp(mInterfaceName, mDhcpInfo)) {<br>     event=EVENT_INTERFACE_CONFIGURATION_SUCCEEDED;</p>
+<p>         if(LOCAL_LOGD)Log.v(TAG, “DhcpHandler: DHCP request succeeded”);</p>
+<p>    } else {<br>           event=EVENT_INTERFACE_CONFIGURATION_FAILED;</p>
+<p>          Log.i(TAG,”DhcpHandler: DHCP request failed: “ +</p>
+<p>                           NetworkUtils.getDhcpError());</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>这 里调用了一个NetworkUtils.runDhcp（）函数，NetworkUtils类是一个网络服务的辅助类，它主要定义了一些本地接口，这些接 口会通过他们的JNI层android_net_NetUtils.cpp文件和DHCP client通信，并获取IP地址。</p>
+<p>至此，IP 地址获取完毕，Wifi启动流程结束。</p>
+
+      
+    </div>
+
+    
+    
+    
+    <div>
+      
+    </div>
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%80%E7%AF%87%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%80%E7%AF%87%EF%BC%89/" class="post-title-link" itemprop="url">信号幽灵wifi（第一篇）</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-06 18:22:01 / 修改时间：18:28:04" itemprop="dateCreated datePublished" datetime="2021-03-06T18:22:01+08:00">2021-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%80%E7%AF%87%EF%BC%89/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%80%E7%AF%87%EF%BC%89/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="WLAN技术"><a href="#WLAN技术" class="headerlink" title="WLAN技术"></a>WLAN技术</h1><p>WLAN是英文WirelessLAN的缩写，就是无线局域网的意思。无线以太网技术是一种基于无线传输的局域网技术，与有线网络技术相比，具有灵活、建网迅速、个人化等特点。将这一技术应用于电信网的接入网领域，能够方便、灵活地为用户提供网络接入，适合于用户流动性较大、有数据业务需求的公共场所、高端的企业及家庭用户、需要临时建网的场合以及难以采用有线接入方式的环境等。</p>
+<h1 id="802-11协议简述"><a href="#802-11协议简述" class="headerlink" title="802.11协议简述"></a>802.11协议简述</h1><ul>
+<li>概述<br>作为全球公认的局域网权威，IEEE802工作组建立的标准在过去二十年内在局域网领域独领风骚。这些协议包括了802.3Ethernet协议、802.5TokenRing协议、802.3z100BASE－T快速以太网协议。在1997年，经过了7年的工作以后，IEEE发布了802.11协议，这也是在无线局域网领域内的第一个国际上被认可的协议。</li>
+</ul>
+<p>在1999年9月，他们又提出了802.11b”HighRate”协议，用来对802.11协议进行补充，802.11b在802.11的1Mbps和2Mbps速率下又增加了5.5Mbps和11Mbps两个新的网络吞吐速率。利用802.11b，移动用户能够获得同Ethernet一样的性能、网络吞吐率、可用性。这个基于标准的技术使得管理员可以根据环境选择合适的局域网技术来构造自己的网络，满足他们的商业用户和其他用户的需求。802.11协议主要工作在ISO协议的最低两层上，并在物理层上进行了一些改动，加入了高速数字传输的特性和连接的稳定性。</p>
+<p>主要内容：<br>　　1.802.11工作方式<br>　　2.802.11物理层<br>　　3.802.11b的增强物理层<br>　　4.802.11数字链路层<br>　　5.联合结构、蜂窝结构和漫游</p>
+<h1 id="802-11四种主要物理组件"><a href="#802-11四种主要物理组件" class="headerlink" title="802.11四种主要物理组件"></a>802.11四种主要物理组件</h1><ul>
+<li><p>工作站（Station）<br>构建网络的主要目的是为了在工作站间传送数据。所谓工作站，是指配备无线网络接口的计算设备。</p>
+</li>
+<li><p>接入点（Access Point）</p>
+</li>
+</ul>
+<p>802.11网络所使用的帧必须经过转换，方能被传递至其他不同类型的网络。具备无线至有线的桥接功能的设备称为接入点，接入点的功能不仅于此，但桥接最为重要。</p>
+<ul>
+<li>无线媒介（Wireless Medium）</li>
+</ul>
+<p>802.11标准以无线媒介在工作站之间传递帧。其所定义的物理层不只是一种，802.11最初标准化了两种射频物理层以及一种红外线物理层。</p>
+<ul>
+<li>分布式系统（Distribution System）<br>当几个接入点串联以覆盖较大区域时，彼此之间必须相互通信以掌握移动式工作站的行踪。分布式系统属于802.11的逻辑组件，负责将帧转送至目的地。</li>
+</ul>
+<p>下图为802.11网络的基本服务集（basic service set），其中包含了这四种物理组件。</p>
+<h1 id="WIFI适配层"><a href="#WIFI适配层" class="headerlink" title="WIFI适配层"></a>WIFI适配层</h1><p>里面定义很多字符串变量和适配层的接口实现，是对wpa_supplicant程序通信的接口封装，用来完成上层和wpa_supplicant的通信， 头文件在libhardware/include/hardware下，这里的函数用来向JNI的本地实现提供调用接口。</p>
+<p>这里的函数，我把它们分为四类函数：</p>
+<p>一类是命令相关的（控制）函数，就是在JNI层android_XXX_Command()函数所调用 的Wifi_Command()函数，调用流程如下：</p>
+<p>android_XXX_command()=&gt;docommand()=&gt;wifi_command()=&gt;wifi_send_command()=&gt;wpa_ctrl_require()。</p>
+<p>二类是 监听函数，即Wifi_wait_for_event()函数，调用流程如下：android_net_wifi_Waitforevent()=&gt;wifi_wait_for_event()=&gt;wpa_ctrl_recv()。</p>
+<p>三就是WPA_SUPPLICANT的启动，连接，关闭函数</p>
+<p>四是驱动的加载和卸载函数</p>
+<h1 id="wpa-supplicant"><a href="#wpa-supplicant" class="headerlink" title="wpa_supplicant"></a>wpa_supplicant</h1><ul>
+<li>wpa_ctrl的作用<br>定义了两类套接字和一个管道，并分别实现了和wpa_supplicant的通信，而在实际的实现中采用的都是套接字的方式，因此wpa_supplicant适配层和wpa_supplicant层 是通过socket通讯的。</li>
+</ul>
+<p>要是从wifi.c中真的很难看出它和wpa_supplicant有什么关系，和它联系密切的就是 这个wpa_ctrl.h文件，这里面定义了一个类wpa_ctrl，这个类中声明了两个Socket套接口，一个是本地一个是要连接的套接 口，wpa_ctrl与wpa_supplicant的通信就需要socket来帮忙了，而wpa_supplicant就是通过调用 wpa_ctrl.h中定义的函数和wpa_supplicant进行通讯的，wpa_ctrl类（其实是其中的两个socket）就是他们之间的桥梁。</p>
+<h1 id="WPA-SUPPLICANT"><a href="#WPA-SUPPLICANT" class="headerlink" title="WPA_SUPPLICANT"></a>WPA_SUPPLICANT</h1><ul>
+<li><p>概念<br>wpa_supplicant本是开源项目源码，被谷歌修改后加入android移动平台，它主要是用来支持WEP，WPA/WPA2和WAPI无线协议和加密认证的，而实际上的工作内容是通过socket（不管是wpa_supplicant与上层还是wpa_supplicant与驱动都采用socket通讯）与驱动交互上报数据给用户，而用户可以通过socket发送命令给wpa_supplicant调动驱动来对WiFi芯片操作。 简单的说，wpa_supplicant就是WiFi驱动和用户的中转站外加对协议和加密认证的支持。</p>
+</li>
+<li><p>Wpa_supplicant与驱动的交互</p>
+</li>
+<li><p>wpa_supplicant.c<br>首先定义一个驱动操作数组externstructwpa_driver_ops *wpa_supplicant_drivers[]，然后是系列wpa_supplicant_XXX()函数，很多函数里面调用 wpa_drv_XXX()函数，这些函数是wpa_supplicant_i.h中实现的函数。几乎每个函数都需要一个wpa_supplicant结 构，对其进行所有的控制和通信操作。</p>
+</li>
+<li><p>Wpa_supplicant_i.h<br>其中定义了一个重要数据结构wpa_supplicant，其中有一个重要的driver成 员，它是wpa_driver_ops类型，可以被用来调用抽象层的接口。接下来是系列函数声明，这些函数声明在wpa_supplicant.c中实现，然后就是wpa_drv_XXX函数，这些函数就是在 wpa_supplicant.c中被wpa_supplicant_xxx函数调用的，而这些wpa_drv_xxx函数也都有一个 wpa_supplicant结构的变量指针，用来调用封装的抽象接口，而这些抽象接口的实现在driver_wext.c中（如果使用的汉斯WEXT驱动）。</p>
+</li>
+</ul>
+<p>这里要注意的是：在wpa_suppliant.c文件中定义的很多函数是在该头文件中声明的，而不是在wpa_supplicant.h中声明的。</p>
+<ul>
+<li> Driver_wext.c<br>对wpa_drvier_ops的个函数的具体实现，该结构指针在wpa_supplicant注册一个网络接口时会被初始化赋予指定的操作指针，wpa_supplicant.c中的wpa_supplicant_xxx函数通过wpa_supplicant结构中的该操作指针调用WEXT的实现接口。</li>
+</ul>
+<p>就是在该文件中，创建了三个socket：ioctrl_socket，event_socket和mlme_socket，它们分别有自己的用途，如ioctrl_socket用于发送控制命令，event_socket用于监听驱动传来的event事件等。Wpa_supplicant通过这三个socket与wifi驱动关联，这里的socket同fd（文件描述符）类似。</p>
+<h1 id="Wpa-cli调试工具"><a href="#Wpa-cli调试工具" class="headerlink" title="Wpa_cli调试工具"></a>Wpa_cli调试工具</h1><ul>
+<li>启动wpa_supplicant<br>使用下面命令启动wpa_supplicant:</li>
+</ul>
+<p>       wpa_supplicant-Dwext -iwlan0 -C/data/system/wpa_supplicant-c/data/misc/wifi/wpa_supplicant.conf</p>
+<p> 为了确保wpa_supplicant真的启动起来了，使用“ps”命令查看。</p>
+<ul>
+<li>连接wpa_cli到wpa_supplicant<br>       wpa_cli-p/data/system/wpa_supplicant -iwlan0</li>
+</ul>
+<p>      然后，就可以使用wpa_cli调试工具进行wifi调试了，下面列出了一些常用的调试命令：</p>
+<p>      &gt;scan                            //扫描周围的AP</p>
+<p>      &gt;scan_results        //显示扫描结果</p>
+<p>      &gt;status                   //显示当前的连接状态信息</p>
+<p>      &gt;terminate             //终止wpa_supplicant</p>
+<p>      &gt;quit                        //退出wpa_cli</p>
+<p>      &gt;add_network       //返回可用network id</p>
+<p>      &gt;set_network<network id> <variable> <value> //设置网络</p>
+<p>      &gt;select_network<network id>          //选择网络，禁用其它网络</p>
+<p>      &gt;disable_network<network id>  //禁用网络</p>
+<p>      &gt;enable_network<network id>        //启用网络</p>
+<ul>
+<li>示例</li>
+<li>无密钥认证AP<br>             &gt;add_network      (返回可用networkid, 假定返回0)</li>
+</ul>
+<p>             &gt;set_network 0 ssid “666”</p>
+<p>             &gt;set_network 0 key_mgmt NONE</p>
+<p>             &gt;enable_network 0</p>
+<p>             &gt;quit</p>
+<p>如果上面的操作正确，我们会连接到一个AP，它的SSID为“666”，现在需要一个IP来访问internet：</p>
+<p>             dhcpcd wlan0</p>
+<p>成功获取IP后，即可连上internet。</p>
+<ul>
+<li>WEP认证AP<br>             &gt;add_network      (假设返回1)</li>
+</ul>
+<p>             &gt;set_network 1 ssid “666”</p>
+<p>             &gt;set_network 1 key_mgmt NONE</p>
+<p>             &gt;set_network 1 wep_key0 “ap passwork”</p>
+<p>             &gt;set_network 1 wep_tx_keyidx 0</p>
+<p>             &gt;select_network 1     （如果你已经连上了其它的AP，那么就需要这个命令来禁用其它的网络）</p>
+<p>             &gt;enable_network 1</p>
+<p>       然后同上获取IP，连接到internet上。</p>
+<ul>
+<li>WPA-PSK/WPA2-PSK认证AP<br>             &gt;add_network      (假定返回2)</li>
+</ul>
+<p>             &gt;set_network 2 ssid “666”</p>
+<p>             &gt;set_network 2 psk “your pre-shared key”</p>
+<p>             &gt;select_network 2 </p>
+<p>             &gt;enable_network 2</p>
+<p>还有其它的命令进一步设置网络，不过wpa_supplicant已经给了我们一些默认的配置。</p>
+<ul>
+<li> 隐藏藏AP<br>  原则上应该只要在上面的基础上去set_network netid scan_ssid 1即可，测试过无加密的Hidden AP，WEP/WPA/WPA2应该道理一样。</li>
+</ul>
+
+      
+    </div>
+
+    
+    
+    
+    <div>
+      
+    </div>
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
         
   
   
@@ -949,411 +3102,12 @@
   
   
 
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/05/2G%E7%9A%84%E5%AE%8C%E6%95%B4%E5%BD%A2%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/1.jpg">
-      <meta itemprop="name" content="孙涛&占莹莹">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="“互联网+”作品">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/03/05/2G%E7%9A%84%E5%AE%8C%E6%95%B4%E5%BD%A2%E5%BC%8F/" class="post-title-link" itemprop="url">2G的完整形式</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2021-03-05 20:10:06 / 修改时间：22:39:55" itemprop="dateCreated datePublished" datetime="2021-03-05T20:10:06+08:00">2021-03-05</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Valine：</span>
-    
-    <a title="valine" href="/2021/03/05/2G%E7%9A%84%E5%AE%8C%E6%95%B4%E5%BD%A2%E5%BC%8F/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/05/2G%E7%9A%84%E5%AE%8C%E6%95%B4%E5%BD%A2%E5%BC%8F/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="2G（Second-Generation"><a href="#2G（Second-Generation" class="headerlink" title="2G（Second Generation)"></a>2G（Second Generation)</h1><p>2G is an abbreviation of the “Second-Generation Cellular Network”.</p>
-<p>2G是“第二代蜂窝网络”的缩写 。</p>
-<p>In 1991, 2G cellular networks were commercially introduced on the GSM standard in Finland by Radiolinja, which at the present, is a component of Elisa Oyj.</p>
-<p>1991年，Radiolinja依照芬兰的GSM标准在商业上引入了2G蜂窝网络，该网络目前是Elisa Oyj的组成部分。</p>
-<p>Three most significant advantages of 2G networks over their antecedents were that:</p>
-<p>2G网络相对于其前身的三个最重要的优势是：</p>
-<p>The conversations happen on phone were using digital technology converted into codes.</p>
-<p>在电话上进行的对话是使用转换为密码的数字技术进行的。</p>
-<p>Extensively highly well-organized use of the radio frequency spectrum allowing a large number of users as per frequency band.</p>
-<p>无线电频谱的广泛高度组织化使用，每个频带允许大量用户。</p>
-<p>Initiation of data services for mobile at the beginning with SMS text messages.</p>
-<p>首先使用SMS文本消息启动移动数据服务。</p>
-<p>2G technologies allowed a variety of networks to offer and make available services such as text messages, picture messages, and MMS (multimedia messages). The entire text messages sent over 2G are using digital technology converted into codes, enabling the transmission of data in such a way that only the anticipated or deliberate receiver can collect and read it.</p>
-<p>2G技术允许各种网络提供和提供服务，例如文本消息，图片消息和MMS(多媒体消息)。 通过2G发送的整个文本消息都使用了转换为代码的数字技术，从而以只有预期或有意的接收者才能收集和读取数据的方式进行数据传输。</p>
-<p>After 2G was introduced; the earlier mobile wireless network systems were retroactively dubbed 1G. At the same time as radio signals on 1G networks are based on analog, radio signals on 2G networks are based on digital. Both the systems of 1G and 2G make use of digital signaling to connect the radio towers (which listen to the devices) to the rest of the mobile system.</p>
-<p>引入2G之后； 早期的移动无线网络系统被追溯称为1G。 同时1G网络上的无线电信号基于模拟，而2G网络上的无线电信号基于数字。 1G和2G系统都利用数字信令将无线电塔(监听设备)连接到移动系统的其余部分。</p>
-<p>2G puts forward a theoretical highest transfer speed of 40 kbit/s with General Packet Radio Service (GPRS). There is a theoretical highest transfer speed of 384 kbit/s with EDGE (Enhanced Data Rates for GSM Evolution).</p>
-<p>2G提出了使用通用分组无线服务(GPRS)的理论上最高的40 kbit / s传输速度。 使用EDGE(GSM演进的增强数据速率)时，理论上的最高传输速度为384 kbit / s。</p>
-<p>The most widespread 2G technology was the time division multiple access (TDMA)-based GSM, formerly from Europe but used in the majority of the world externally out of North America. By 2010, more than 60 GSM operators were also using CDMA2000 in the 450 MHz frequency band (CDMA450).</p>
-<p>最为广泛的2G技术是基于时分多址(TDMA)的GSM，其原产于欧洲，但在北美以外的世界大部分地区使用。 到2010年，超过60个GSM运营商也在450 MHz频带(CDMA450)中使用CDMA2000。</p>
-<h1 id="2G演进-2G-Evolution"><a href="#2G演进-2G-Evolution" class="headerlink" title="2G演进 (2G Evolution)"></a>2G演进 (2G Evolution)</h1><ul>
-<li>2.5G (GPRS)</li>
-</ul>
-<p>2.5G (“second and a half generation”) is used to illustrate 2G-systems that have put into operation a packet-switched domain as well as to the circuit-switched domain.</p>
-<p>It doesn’t essentially make available more rapid service for the reason that the packaging of timeslots is used for circuit-switched data services (HSCSD) as well.</p>
-<ul>
-<li>2.75G (EDGE)</li>
-</ul>
-<p>With the launch of 8PSK encoding, GPRS networks evolved and developed to EDGE networks.</p>
-<p>Enhanced Data rates for GSM Evolution (EDGE), Enhanced GPRS (EGPRS), or IMT Single Carrier (IMT-SC) is a backward-compatible digital mobile phone technology that enables enhanced data transmission rates, as an expansion on top of customary GSM.</p>
-
-      
-    </div>
-
-    
-    
-    
-    <div>
-      
-    </div>
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2020/03/04/%E6%95%99%E4%BD%A0%E8%AE%BF%E9%97%AEsteam%E7%A4%BE%E5%8C%BA/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/1.jpg">
-      <meta itemprop="name" content="孙涛&占莹莹">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="“互联网+”作品">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/03/04/%E6%95%99%E4%BD%A0%E8%AE%BF%E9%97%AEsteam%E7%A4%BE%E5%8C%BA/" class="post-title-link" itemprop="url">教你访问steam社区</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2020-03-04 10:55:30" itemprop="dateCreated datePublished" datetime="2020-03-04T10:55:30+08:00">2020-03-04</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-03-05 22:42:53" itemprop="dateModified" datetime="2021-03-05T22:42:53+08:00">2021-03-05</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%8A%80%E6%9C%AF/" itemprop="url" rel="index"><span itemprop="name">技术</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Valine：</span>
-    
-    <a title="valine" href="/2020/03/04/%E6%95%99%E4%BD%A0%E8%AE%BF%E9%97%AEsteam%E7%A4%BE%E5%8C%BA/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2020/03/04/%E6%95%99%E4%BD%A0%E8%AE%BF%E9%97%AEsteam%E7%A4%BE%E5%8C%BA/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>如果你的电脑里还没有一个像样的网络代理但想访问steam社区，那不妨试试这个软件。</p>
-<h1 id="安装教程"><a href="#安装教程" class="headerlink" title="安装教程"></a>安装教程</h1><p>解压下载好的压缩包，打开里面的exe文件即可使用，无需安装。</p>
-<h1 id="下载"><a href="#下载" class="headerlink" title="下载"></a>下载</h1><p>链接：<a target="_blank" rel="noopener" href="https://pan.baidu.com/s/1mygj-J9reQI0qIKoIDeoYA">https://pan.baidu.com/s/1mygj-J9reQI0qIKoIDeoYA</a><br>提取码：7oxn</p>
-
-      
-    </div>
-
-    
-    
-    
-    <div>
-      
-    </div>
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2020/03/03/%E7%94%B5%E8%84%91chrome%E7%94%A8%E7%BD%91%E7%BB%9C%E4%BB%A3%E7%90%86/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/1.jpg">
-      <meta itemprop="name" content="孙涛&占莹莹">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="“互联网+”作品">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/03/03/%E7%94%B5%E8%84%91chrome%E7%94%A8%E7%BD%91%E7%BB%9C%E4%BB%A3%E7%90%86/" class="post-title-link" itemprop="url">电脑chrome用网络代理</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2020-03-03 20:03:18" itemprop="dateCreated datePublished" datetime="2020-03-03T20:03:18+08:00">2020-03-03</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-03-05 22:43:08" itemprop="dateModified" datetime="2021-03-05T22:43:08+08:00">2021-03-05</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%8A%80%E6%9C%AF/" itemprop="url" rel="index"><span itemprop="name">技术</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Valine：</span>
-    
-    <a title="valine" href="/2020/03/03/%E7%94%B5%E8%84%91chrome%E7%94%A8%E7%BD%91%E7%BB%9C%E4%BB%A3%E7%90%86/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2020/03/03/%E7%94%B5%E8%84%91chrome%E7%94%A8%E7%BD%91%E7%BB%9C%E4%BB%A3%E7%90%86/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="使用效果"><a href="#使用效果" class="headerlink" title="使用效果"></a>使用效果</h1><p>这是一个梯子各位都懂，不过它的速度不是很理想，对于像我这种没钱买机场的人来说可以将就用一下。</p>
-<h1 id="安装教程"><a href="#安装教程" class="headerlink" title="安装教程"></a>安装教程</h1><p>它也是一个chrome的扩展程序，所以安装方法可以参考我的上一篇博客“教你使用插件访问chrome扩展商店”。</p>
-<h1 id="使用教程"><a href="#使用教程" class="headerlink" title="使用教程"></a>使用教程</h1><p>安装完成以后只要在chrome的右上角点击扩展程序图标即可使用。</p>
-<h1 id="下载"><a href="#下载" class="headerlink" title="下载"></a>下载</h1><p>链接：<a target="_blank" rel="noopener" href="https://pan.baidu.com/s/1F-1c3JIVluiB_8Z4jyQK2w">https://pan.baidu.com/s/1F-1c3JIVluiB_8Z4jyQK2w</a><br>提取码：v675</p>
-
-      
-    </div>
-
-    
-    
-    
-    <div>
-      
-    </div>
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-        
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2020/03/03/%E6%95%99%E4%BD%A0%E4%BD%BF%E7%94%A8%E6%8F%92%E4%BB%B6%E8%AE%BF%E9%97%AEchrome%E5%95%86%E5%BA%97/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/1.jpg">
-      <meta itemprop="name" content="孙涛&占莹莹">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="“互联网+”作品">
-    </span>
-      <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/03/03/%E6%95%99%E4%BD%A0%E4%BD%BF%E7%94%A8%E6%8F%92%E4%BB%B6%E8%AE%BF%E9%97%AEchrome%E5%95%86%E5%BA%97/" class="post-title-link" itemprop="url">教你使用插件访问chrome商店</a>
-        </h1>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2020-03-03 19:56:16" itemprop="dateCreated datePublished" datetime="2020-03-03T19:56:16+08:00">2020-03-03</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-03-05 22:42:17" itemprop="dateModified" datetime="2021-03-05T22:42:17+08:00">2021-03-05</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%8A%80%E6%9C%AF/" itemprop="url" rel="index"><span itemprop="name">技术</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="fa fa-comment-o"></i>
-      </span>
-      <span class="post-meta-item-text">Valine：</span>
-    
-    <a title="valine" href="/2020/03/03/%E6%95%99%E4%BD%A0%E4%BD%BF%E7%94%A8%E6%8F%92%E4%BB%B6%E8%AE%BF%E9%97%AEchrome%E5%95%86%E5%BA%97/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2020/03/03/%E6%95%99%E4%BD%A0%E4%BD%BF%E7%94%A8%E6%8F%92%E4%BB%B6%E8%AE%BF%E9%97%AEchrome%E5%95%86%E5%BA%97/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="安装教程"><a href="#安装教程" class="headerlink" title="安装教程"></a>安装教程</h1><ul>
-<li>将下载好的文件解压</li>
-<li>打开chrome浏览器，点击右上角的“自定义及控制（三个点）”，找到“更多工具”，点击“扩展工具”<br><img src="/images/2.png"></li>
-<li>打开右上角的“开发者模式”<br><img src="/images/3.png"></li>
-<li>将第一步解压好的文件拖到浏览器空白处<br><img src="/images/4.png"> </li>
-<li>然后就会出现下面这个页面，点击第二个“chrome商店”<br><img src="/images/5.png"></li>
-<li>完成<h1 id="下载"><a href="#下载" class="headerlink" title="下载"></a>下载</h1>链接：<a target="_blank" rel="noopener" href="https://pan.baidu.com/s/1N6EOHNZ1aaUUNVOuk_cjpg">https://pan.baidu.com/s/1N6EOHNZ1aaUUNVOuk_cjpg</a><br>提取码：0azl<h1 id="扩展程序推荐"><a href="#扩展程序推荐" class="headerlink" title="扩展程序推荐"></a>扩展程序推荐</h1></li>
-<li>Infinity新标签页（一个看起来很舒服的标签页）</li>
-<li>购物党自动比价工具（使用某宝和某东的时候能用到的查看历史价格工具）</li>
-<li>AdGuard广告拦截器（顾名思义）</li>
-</ul>
-
-      
-    </div>
-
-    
-    
-    
-    <div>
-      
-    </div>
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
   </div>
 
   
+  <nav class="pagination">
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+  </nav>
 
 
 
@@ -1420,7 +3174,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-count">14</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

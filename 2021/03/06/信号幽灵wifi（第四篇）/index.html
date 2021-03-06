@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/2.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/1.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.7.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"default"},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="IOCTL的调用逻辑之所以要分析这个，是因为上层wpa_supplicant和WIFI驱动打交道的方式，多半是通过ioctl的方式进行的，所以看看它的调用逻辑（这里只列出其主要的调用逻辑）：        上面便是用户ioctl调用的流程图，它最终分为两条线即有两种支持，选择那一条或两条都选（个人感觉最好选第2条线，因为它最后也是会调用到相应的函数的，而且还有其它更多的命令支持），从实际的代码来看">
+<meta property="og:type" content="article">
+<meta property="og:title" content="信号幽灵wifi（第四篇）">
+<meta property="og:url" content="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/index.html">
+<meta property="og:site_name" content="“互联网+”作品">
+<meta property="og:description" content="IOCTL的调用逻辑之所以要分析这个，是因为上层wpa_supplicant和WIFI驱动打交道的方式，多半是通过ioctl的方式进行的，所以看看它的调用逻辑（这里只列出其主要的调用逻辑）：        上面便是用户ioctl调用的流程图，它最终分为两条线即有两种支持，选择那一条或两条都选（个人感觉最好选第2条线，因为它最后也是会调用到相应的函数的，而且还有其它更多的命令支持），从实际的代码来看">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-03-06T10:43:36.000Z">
+<meta property="article:modified_time" content="2021-03-06T10:47:47.491Z">
+<meta property="article:author" content="孙涛&amp;占莹莹">
+<meta property="article:tag" content="知识">
+<meta property="article:tag" content="分享">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true
+  };
+</script>
+
+  <title>信号幽灵wifi（第四篇） | “互联网+”作品</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="“互联网+”作品" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<a target="_blank" rel="noopener" href="https://github.com/shatangst" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">“互联网+”作品</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">4</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">14</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+
+</nav>
+  <div class="site-search">
+    <div class="popup search-popup">
+    <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocorrect="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result"></div>
+
+</div>
+<div class="search-pop-overlay"></div>
+
+  </div>
+</div>
+    </header>
+
+    
+
+  <a href="https://github.com/shatangst/" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          信号幽灵wifi（第四篇）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-06 18:43:36 / 修改时间：18:47:47" itemprop="dateCreated datePublished" datetime="2021-03-06T18:43:36+08:00">2021-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="IOCTL的调用逻辑"><a href="#IOCTL的调用逻辑" class="headerlink" title="IOCTL的调用逻辑"></a>IOCTL的调用逻辑</h1><p>之所以要分析这个，是因为上层wpa_supplicant和WIFI驱动打交道的方式，多半是通过ioctl的方式进行的，所以看看它的调用逻辑（这里只列出其主要的调用逻辑）：</p>
+<p>       上面便是用户ioctl调用的流程图，它最终分为两条线即有两种支持，选择那一条或两条都选（个人感觉最好选第2条线，因为它最后也是会调用到相应的函数的，而且还有其它更多的命令支持），从实际的代码来看，如果dev-&gt;netdev_ops</p>
+<p>-&gt;ndo_do_ioctl被初始化了，那么它一定会被调用，是否被初始化，在前面选择对net结构变量的初始化方式中有讨论过。</p>
+<p>       下面来具体看看该调用流程，首先说明下，上面的流程主要实现在kernel/net/wireless/wext_core.c文件中，这是wireless的协议层实现，恰好我们在wpa_supplicant中通常选择的驱动类型也是wext，它的入口函数是wext_ioctl_dispatch：</p>
+<p>/* entry point from dev ioctl*/</p>
+<p>static int wext_ioctl_dispatch(struct net <em>net, struct ifreq</em>ifr,</p>
+<p>                              unsigned int cmd, struct iw_request_info *info,</p>
+<p>                              wext_ioctl_func standard,</p>
+<p>                               wext_ioctl_funcprivate)</p>
+<p>{<br>        int ret = wext_permission_check(cmd);</p>
+<p> </p>
+<p>        if (ret)</p>
+<p>                return ret;</p>
+<p> </p>
+<p>        dev_load(net, ifr-&gt;ifr_name);</p>
+<p>        rtnl_lock();</p>
+<p>        ret = wireless_process_ioctl(net, ifr, cmd, info, standard,private);</p>
+<p>        rtnl_unlock();</p>
+<p> </p>
+<p>        return ret;</p>
+<p>}</p>
+<p>      </p>
+<p>它其实就是wireless_process_ioctl的封装函数，除了进行许可权限的确认，没有做什么其它内容，这里有standard和private两个函数指针的传递，其实就是两个回调函数，在后面会用到，它是由wext_handle_ioctl函数传递过来的：</p>
+<p>int wext_handle_ioctl(structnet *net, struct ifreq *ifr, unsigned int cmd,</p>
+<p>                      void __user *arg)</p>
+<p>{<br>        struct iw_request_info info = { .cmd =cmd, .flags = 0 };</p>
+<p>        int ret;</p>
+<p> </p>
+<p>        ret = wext_ioctl_dispatch(net, ifr, cmd, &amp;info,</p>
+<p>                                 ioctl_standard_call,</p>
+<p>                                 ioctl_private_call);     //这两个回调函数的定义之后再讨论，这里暂不理论</p>
+<p>        if (ret &gt;= 0 &amp;&amp;</p>
+<p>            IW_IS_GET(cmd) &amp;&amp;</p>
+<p>            copy_to_user(arg, ifr, sizeof(structiwreq)))</p>
+<p>                return -EFAULT;</p>
+<p> </p>
+<p>        return ret;</p>
+<p>}</p>
+<p>实际上传递的就是ioctl_standard_call和ioctl_private_call两个函数，在看看wireless_process_ioctl函数，这个函数很重要，下面做重点分析：</p>
+<p>static intwireless_process_ioctl(struct net *net, struct ifreq *ifr,</p>
+<p>                                  unsigned int cmd,</p>
+<p>                                  structiw_request_info *info,</p>
+<p>                                 wext_ioctl_func standard,</p>
+<p>                                 wext_ioctl_func private)</p>
+<p>{<br>        struct iwreq *iwr = (struct iwreq *)ifr;</p>
+<p>        struct net_device *dev;</p>
+<p>        iw_handler      handler;</p>
+<p> </p>
+<p>        /* Permissions are already checked indev_ioctl() before calling us.</p>
+<p>         * The copy_to/from_user() of ifr isalso dealt with in there */</p>
+<p> </p>
+<p>        /* Make sure the device exist */</p>
+<p>        if ((dev = __dev_get_by_name(net, ifr-&gt;ifr_name)) == NULL)             //通过网络接口名获取net_device设备</p>
+<p>                return -ENODEV;</p>
+<p> </p>
+<p>        /* A bunch of special cases, then thegeneric case…</p>
+<p>         * Note that ‘cmd’ is already filteredin dev_ioctl() with</p>
+<p>         * (cmd &gt;= SIOCIWFIRST &amp;&amp;cmd &lt;= SIOCIWLAST) */</p>
+<p>        if (cmd == SIOCGIWSTATS)</p>
+<p>                returnstandard(dev, iwr, cmd, info,</p>
+<p>                               &amp;iw_handler_get_iwstats);   //如果是状态查询命令，调用该函数（回调函数中的一个）</p>
+<p> </p>
+<p>#ifdef CONFIG_WEXT_PRIV</p>
+<p>        if (cmd == SIOCGIWPRIV &amp;&amp; dev-&gt;wireless_handlers)</p>
+<p>                returnstandard(dev, iwr, cmd, info,</p>
+<p>                               iw_handler_get_private);      //如果是专有命令，调用回调函数，同上</p>
+<p>#endif</p>
+<p> </p>
+<p>        /* Basic check */</p>
+<p>        if (!netif_device_present(dev))</p>
+<p>                return -ENODEV;</p>
+<p> </p>
+<p>        /* New driver API : try to find thehandler */</p>
+<p>        handler = get_handler(dev, cmd);              //根据cmd参数，从dev成员中查询相应的处理函数</p>
+<p>        if (handler) {<br>                /* Standard and private are notthe same */</p>
+<p>                if (cmd &lt; SIOCIWFIRSTPRIV)</p>
+<p>                        return standard(dev, iwr, cmd, info, handler);  //调用相应命令的处理函数</p>
+<p>                else if (private)</p>
+<p>                        return private(dev, iwr, cmd, info, handler);     //同上</p>
+<p>        }</p>
+<p>        /* Old driver API : call driver ioctlhandler */</p>
+<p>        if(dev-&gt;netdev_ops-&gt;ndo_do_ioctl)</p>
+<p>                return dev-&gt;netdev_ops-&gt;ndo_do_ioctl(dev,ifr, cmd);     //如果被设置就调用该函数</p>
+<p>        return -EOPNOTSUPP;</p>
+<p>}</p>
+<p>该函数的大意是，通过网络接口名称获得一个网络设备，然后根据命令的类型调用相应的处理函数，特别的是当dev-&gt;netdev_ops-&gt;ndo_do_ioctl或dev-&gt;wireless_handlers被设置时，则会查找执行对应的处理函数。Get_handle函数用于查询处理函数使用：</p>
+<p>static iw_handlerget_handler(struct net_device *dev, unsigned int cmd)</p>
+<p>{<br>        /* Don’t “optimise” thefollowing variable, it will crash */</p>
+<p>        unsigned int    index;          /* <em>MUST</em> be unsigned */</p>
+<p>        const struct iw_handler_def *handlers = NULL;</p>
+<p> </p>
+<p>#ifdef CONFIG_CFG80211_WEXT</p>
+<p>        if (dev-&gt;ieee80211_ptr &amp;&amp;dev-&gt;ieee80211_ptr-&gt;wiphy)</p>
+<p>                handlers =dev-&gt;ieee80211_ptr-&gt;wiphy-&gt;wext;  //初始化默认的处理函数</p>
+<p>#endif</p>
+<p>#ifdef CONFIG_WIRELESS_EXT</p>
+<p>        if (dev-&gt;wireless_handlers)</p>
+<p>                handlers= dev-&gt;wireless_handlers;    //这里的dev-&gt;wireless_handlers在net初始化时被作为扩张功能选择性的设置，前面有提到过</p>
+<p>#endif</p>
+<p> </p>
+<p>        if (!handlers)</p>
+<p>                return NULL;</p>
+<p> </p>
+<p>        /* Try as a standard command */</p>
+<p>        index = IW_IOCTL_IDX(cmd);</p>
+<p>        if (index <handlers->num_standard)</p>
+<p>                returnhandlers-&gt;standard[index];     //返回对应的标准函数</p>
+<p> </p>
+<p>#ifdef CONFIG_WEXT_PRIV</p>
+<p>        /* Try as a private command */</p>
+<p>        index = cmd - SIOCIWFIRSTPRIV;</p>
+<p>        if (index <handlers->num_private)</p>
+<p>                return handlers-&gt;private[index];        //返回对应的专有函数</p>
+<p>#endif</p>
+<p> </p>
+<p>        /* Not found */</p>
+<p>        return NULL;</p>
+<p>}</p>
+<p>那么这个dev-&gt;wireless_handlers究竟是什么，这里来揭开它的神秘面纱，在bcm4329源码src/wl/sys/wl_iw.c中，有它的定义：</p>
+<p>static const iw_handler wl_iw_handler[]=</p>
+<p>{<br>        (iw_handler) wl_iw_config_commit,</p>
+<p>        (iw_handler) wl_iw_get_name,</p>
+<p>        (iw_handler) NULL,</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p>static const iw_handler wl_iw_priv_handler[]= {<br>        NULL,</p>
+<p>        (iw_handler)wl_iw_set_active_scan,</p>
+<p>        NULL,</p>
+<p>        (iw_handler)wl_iw_get_rssi,</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p>const struct iw_handler_def  wl_iw_handler_def =</p>
+<p>{<br>        .num_standard =ARRAYSIZE(wl_iw_handler),</p>
+<p>        .standard = (iw_handler *) wl_iw_handler,</p>
+<p>        .num_private = ARRAYSIZE(wl_iw_priv_handler),</p>
+<p>        .num_private_args =ARRAY_SIZE(wl_iw_priv_args),</p>
+<p>        .private = (iw_handler *)wl_iw_priv_handler,</p>
+<p>        .private_args = (void *)wl_iw_priv_args,</p>
+<p> </p>
+<p>#if WIRELESS_EXT &gt;= 19</p>
+<p>        get_wireless_stats:dhd_get_wireless_stats,</p>
+<p>#endif</p>
+<p>        };</p>
+<p>#endif</p>
+<p>在net初始化的时候，这里把dev-&gt;wireless_handlers和dev-&gt;netdev_ops的初始化代码再贴出来：</p>
+<p>int</p>
+<p>dhd_net_attach(dhd_pub_t*dhdp, int ifidx)</p>
+<p>{<br>……</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 31))</p>
+<p>        ASSERT(!net-&gt;open);</p>
+<p>        net-&gt;get_stats = dhd_get_stats;</p>
+<p>        net-&gt;do_ioctl =dhd_ioctl_entry;</p>
+<p>       net-&gt;hard_start_xmit = dhd_start_xmit;</p>
+<p>       net-&gt;set_mac_address = dhd_set_mac_address;</p>
+<p>       net-&gt;set_multicast_list = dhd_set_multicast_list;</p>
+<p>        net-&gt;open =net-&gt;stop = NULL;</p>
+<p>#else</p>
+<p>        ASSERT(!net-&gt;netdev_ops);</p>
+<p>        net-&gt;netdev_ops = &amp;dhd_ops_virt;</p>
+<p>#endif</p>
+<p> </p>
+<p>……</p>
+<p>#if WIRELESS_EXT &gt; 12</p>
+<p>        net-&gt;wireless_handlers = (struct iw_handler_def*)&amp;wl_iw_handler_def;   //这里的初始化工作很重要，之后的ioctl流程会涉及到对它的使用</p>
+<p>#endif /* WIRELESS_EXT &gt; 12*/</p>
+<p> </p>
+<p> </p>
+<p>……</p>
+<p>}</p>
+<p>看到这里，应该可以明白相应的命令最终会在wl_iw.c中被执行，这些处理函数也是在该文件中实现。上面已经获取了命令的处理函数，那么它是如何被执行的呢？这里wireless_process_ioctl里有standard和private的回调函数的调用：</p>
+<p>static intioctl_standard_call(struct net_device *     dev,</p>
+<p>                               structiwreq             *iwr,</p>
+<p>                               unsigned int             cmd,</p>
+<p>                               structiw_request_info   *info,</p>
+<p>                               iw_handler               handler)</p>
+<p>{<br>        const struct iw_ioctl_description*     descr;</p>
+<p>        int                                     ret = -EINVAL;</p>
+<p> </p>
+<p>        /* Get the description of the IOCTL */</p>
+<p>        if (IW_IOCTL_IDX(cmd) &gt;=standard_ioctl_num)</p>
+<p>                return -EOPNOTSUPP;</p>
+<p>        descr =&amp;(standard_ioctl[IW_IOCTL_IDX(cmd)]);</p>
+<p> </p>
+<p>        /* Check if we have a pointer to userspace data or not */</p>
+<p>        if (descr-&gt;header_type !=IW_HEADER_TYPE_POINT) {
+ </p>
+<p>                /* No extra arguments. Trivialto handle */</p>
+<p>                ret = handler(dev, info, &amp;(iwr-&gt;u),NULL);</p>
+<p> </p>
+<p>                /* Generate an event to notifylisteners of the change */</p>
+<p>                if ((descr-&gt;flags &amp;IW_DESCR_FLAG_EVENT) &amp;&amp;</p>
+<p>                   ((ret == 0) || (ret ==-EIWCOMMIT)))</p>
+<p>                        wireless_send_event(dev, cmd, &amp;(iwr-&gt;u),NULL);</p>
+<p>        } else {<br>                ret =ioctl_standard_iw_point(&amp;iwr-&gt;u.data, cmd, descr,</p>
+<p>                                             handler, dev, info);</p>
+<p>        }</p>
+<p> </p>
+<p>        /* Call commit handler if needed anddefined */</p>
+<p>        if (ret == -EIWCOMMIT)</p>
+<p>                ret =call_commit_handler(dev);</p>
+<p> </p>
+<p>        /* Here, we will generate theappropriate event if needed */</p>
+<p> </p>
+<p>        return ret;</p>
+<p>}</p>
+<p>回调函数中对传递过来的handler函数指针进行呼叫，对应的处理函数就会被执行，当然用户传送的命令还不止这些，所以才会有net-&gt;netdev_ops的存在的必要性。下面来就来看看执行到：</p>
+<p>return dev-&gt;netdev_ops-&gt;ndo_do_ioctl(dev, ifr, cmd);     //wireless_process_ioctl的最后一句</p>
+<p>就会调用dhd_ioctl函数，这是wlan驱动对ioctl调用的处理函数，就是根据用户传递过来的cmd，给它找一个最合适最合理的“归宿”。</p>
+<p>static int</p>
+<p>dhd_ioctl_entry(structnet_device *net, struct ifreq *ifr, int cmd)</p>
+<p>{<br>……#ifdefined(CONFIG_WIRELESS_EXT)</p>
+<p>        /* linux wireless extensions */</p>
+<p>        if ((cmd &gt;= SIOCIWFIRST) &amp;&amp;(cmd &lt;= SIOCIWLAST)) {<br>                /* may recurse, do NOT lock */</p>
+<p>                ret = wl_iw_ioctl(net, ifr, cmd);</p>
+<p>               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return ret;</p>
+<p>        }</p>
+<p>#endif /*defined(CONFIG_WIRELESS_EXT) */</p>
+<p> </p>
+<p>#if LINUX_VERSION_CODE &gt;KERNEL_VERSION(2, 4, 2)</p>
+<p>        if (cmd == SIOCETHTOOL) {<br>                ret = dhd_ethtool(dhd,(void*)ifr-&gt;ifr_data);</p>
+<p>               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return ret;</p>
+<p>        }</p>
+<p>#endif /* LINUX_VERSION_CODE&gt; KERNEL_VERSION(2, 4, 2) */</p>
+<p> </p>
+<p>        if (cmd == SIOCDEVPRIVATE+1) {<br>                ret = wl_android_priv_cmd(net, ifr, cmd);</p>
+<p>                dhd_check_hang(net,&amp;dhd-&gt;pub, ret);</p>
+<p>                DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return ret;</p>
+<p>        }</p>
+<p> </p>
+<p>        if (cmd != SIOCDEVPRIVATE) {<br>               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                return -EOPNOTSUPP;</p>
+<p>        }</p>
+<p> </p>
+<p>        memset(&amp;ioc, 0, sizeof(ioc));</p>
+<p>……</p>
+<p>bcmerror = dhd_wl_ioctl(&amp;dhd-&gt;pub, ifidx, (wl_ioctl_t*)&amp;ioc, buf, buflen);</p>
+<p>……</p>
+<p>}</p>
+<p>限于篇幅，该函数处理过程不再详述，大致的命令处理方法相似，wl_iw.c中的系列处理函数只是其中的一部分，wl_android中和dhd_linux.c也有相应的处理函数。</p>
+<h1 id="数据的传送"><a href="#数据的传送" class="headerlink" title="数据的传送"></a>数据的传送</h1><ul>
+<li>数据传送过程简述<br>传送指的是通过一个网络连接发送一个报文的行为.。无论何时内核需要传送一个数据报文, 它都必须调用驱动的 hard_start_xmit 方法将数据放在外出队列上。</li>
+</ul>
+<p>每个内核处理的报文都包含在一个 socket缓存结构( 结构 sk_buff )里, 定义见&lt;linux/skbuff.h&gt;。这个结构从 Unix 抽象中得名, 用来代表一个网络连接socket.。对于接口来说, 一个 socket 缓存只是一个报文。</p>
+<p>传给 hard_start_xmit 的socket 缓存包含物理报文, 它应当出现在媒介上, 以传输层的头部结束。接口不需要修改要传送的数据.。skb-&gt;data指向要传送的报文，skb-&gt;len 是以字节计的长度。传送下来的sk_buff中的数据已经包含硬件需要的帧头（这是通过hard_header函数将传递进入的信息，组织成设备特有的硬件头），所以在发送方法里不需要再填充硬件帧头，数据可以直接提 交给硬件发送。sk_buff是被锁住的(locked)，确保其他程序不会存取它。</p>
+<p>所有的网络设备驱动程序都必须有这个发送方法。在系统调用驱动程序的xmit时，发送的数据放在一个sk_buff 结构中。一般的驱动程序把数据传给硬件发出去。也有一些特殊的设备比如loopback把数据组成一个接收数据再回送给系统，或者dummy设备直接丢弃 数据。如果发送成功，hard_start_xmit方法里释放sk_buff，返回0(发送成功)。</p>
+<ul>
+<li>Bcm4329芯片wlan驱动数据传送<br>当上层传送过来报文，调用hard_start_xmit函数（该方法主用于初始化数据包的传输），该函数主要用于转换sk_buf，将其组织成pktbuf数据格式，然后调用dhd_sendpkt函数将pktbuf通过dhd bus发送到wifi芯片，最后硬件wifi芯片将报文radio发送到网络上。</li>
+</ul>
+<p>int</p>
+<p>dhd_start_xmit(struct sk_buff *skb,struct net_device *net)</p>
+<p>{<br>……</p>
+<p>        /* Convert to packet */</p>
+<p>        if (!(pktbuf =PKTFRMNATIVE(dhd-&gt;pub.osh, skb))) {<br>                DHD_ERROR((“%s:PKTFRMNATIVE failed\n”,</p>
+<p>                          dhd_ifname(&amp;dhd-&gt;pub, ifidx)));</p>
+<p>                dev_kfree_skb_any(skb);        //转换成功，释放skb，在通常处理中，会在中断中做该操作</p>
+<p>                ret = -ENOMEM;</p>
+<p>                goto done;</p>
+<p>        }</p>
+<p>#ifdef WLMEDIA_HTSF</p>
+<p>        if (htsfdlystat_sz &amp;&amp;PKTLEN(dhd-&gt;pub.osh, pktbuf) &gt;= ETHER_ADDR_LEN) {<br>                uint8 <em>pktdata = (uint8</em>)PKTDATA(dhd-&gt;pub.osh, pktbuf);</p>
+<p>                struct ether_header *eh =(struct ether_header *)pktdata;</p>
+<p> </p>
+<p>                if(!ETHER_ISMULTI(eh-&gt;ether_dhost) &amp;&amp;</p>
+<p>                       (ntoh16(eh-&gt;ether_type) == ETHER_TYPE_IP)) {<br>                        eh-&gt;ether_type =hton16(ETHER_TYPE_BRCM_PKTDLYSTATS);</p>
+<p>                }</p>
+<p>        }</p>
+<p>#endif</p>
+<p> </p>
+<p>        ret = dhd_sendpkt(&amp;dhd-&gt;pub, ifidx,pktbuf);     //发送pktbuf</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p>int</p>
+<p>dhd_sendpkt(dhd_pub_t *dhdp, intifidx, void *pktbuf)</p>
+<p>{<br>……</p>
+<p>#ifdef PROP_TXSTATUS</p>
+<p>        if (dhdp-&gt;wlfc_state &amp;&amp;((athost_wl_status_info_t*)dhdp-&gt;wlfc_state)-&gt;proptxstatus_mode</p>
+<p>                        != WLFC_FCMODE_NONE) {<br>                dhd_os_wlfc_block(dhdp);</p>
+<p>                ret =dhd_wlfc_enque_sendq(dhdp-&gt;wlfc_state, DHD_PKTTAG_FIFO(PKTTAG(pktbuf)),</p>
+<p>                        pktbuf);</p>
+<p>               dhd_wlfc_commit_packets(dhdp-&gt;wlfc_state,  (f_commitpkt_t)dhd_bus_txdata,</p>
+<p>                        dhdp-&gt;bus);</p>
+<p>                if(((athost_wl_status_info_t*)dhdp-&gt;wlfc_state)-&gt;toggle_host_if) {<br>                        ((athost_wl_status_info_t*)dhdp-&gt;wlfc_state)-&gt;toggle_host_if= 0;</p>
+<p>                }</p>
+<p>                dhd_os_wlfc_unblock(dhdp);</p>
+<p>        }</p>
+<p>        else</p>
+<p>                /* non-proptxstatus way */</p>
+<p>        ret = dhd_bus_txdata(dhdp-&gt;bus, pktbuf);         //在SDIO总线上传输</p>
+<p>#else</p>
+<p>        ret = dhd_bus_txdata(dhdp-&gt;bus, pktbuf);</p>
+<p>#endif /* PROP_TXST</p>
+<p>……</p>
+<p>}</p>
+<p>传输结束后，会产生一个中断，即传输结束中断，一般的网络驱动程序都会有这个中断的注册，但还有一种轮询方式，这在后面的数据的接收部分会有介绍，而sk_buf就在这个中断处理函数中被释放。</p>
+<p>但是，实际情况还是比较复杂，当硬件偶尔出现问题不能响应驱动时，就不能完成驱动的功能。在网络接口发送数据时也会发生一些不可预知的不响应动作，比如当网络介质因阻塞造成的冲突，而使发送报文的动作不能得到响应，但硬件通常不需要做此类的检测，需要驱动用软件的方法来实现，这就是超时传输机制。</p>
+<ul>
+<li>传输超时<br>与真实硬件打交道的大部分驱动不得不预备处理硬件偶尔不能响应。接口可能忘记它们在做什么，或者系统可能丢失中断。</li>
+</ul>
+<p>许多驱动通过设置定时器来处理这个问题; 如果在定时器到期时操作还没结束, 有什么不对了，网络系统, 本质上是一个复杂的由大量定时器控制的状态机的组合体。因此, 网络代码是一个合适的位置来检测发送超时, 作为它正常操作的一部分。网络驱动不需要担心自己去检测这样的问题，相反, 它们只需要设置一个超时值, 在net_device 结构的 watchdog_timeo 成员。这个超时值, 以 jiffy 计, 应当足够长以容纳正常的发送延迟(例如网络媒介拥塞引起的冲突)。</p>
+<p>如果当前系统时间超过设备的 trans_start 时间至少 time-out 值, 网络层最终调用驱动的 tx_timeout方法。这个方法的工作是是进行清除问题需要的工作并且保证任何已经开始的发送正确地完成。特别地, 驱动没有丢失追踪任何网络代码委托给它的 socket 缓存。</p>
+<p>当发生传送超时, 驱动必须在接口统计量中标记这个错误, 并安排设备被复位到一个干净的能发送新报文的状态，一般驱动会调用netif_wake_queue函数重新启动传输队列。</p>
+<h1 id="数据的接收"><a href="#数据的接收" class="headerlink" title="数据的接收"></a>数据的接收</h1><ul>
+<li>数据接收的方式和过程<br>从网络上接收报文比发送它要难一些，因为必须分配一个 sk_buff 并从一个原子性上下文中递交给上层。网络驱动可以实现 2 种报文接收的模式：中断驱动和查询，大部分驱动采用中断驱动技术。</li>
+</ul>
+<p>大部分硬件接口通过一个中断处理来控制，硬件中断处理器来发出 2 种可能的信号：一个新报文到了或者一个外出报文的发送完成了。网络接口也能够产生中断来指示错误, 例如状态改变, 等等。</p>
+<p>通常的中断过程能够告知新报文到达中断和发送完成通知的区别，通过检查物理设备中的状态寄存器，来判断是那一种中断，对于发送完成中断更新状态信息，释放skb内存。而对于接收数据中断，从数据队列中抽取一包数据，并把它传递给接收函数。</p>
+<p>注意：这里的对设备数据的操作是在锁得保护下完成的，做一最后还要释放掉锁。</p>
+<ul>
+<li>选择哪种接收模式<br>那么，既然后两种方式来处理网络接口发来的数据，选择那一种呢？一般认为中断是比较好的一种方式，不过，如果接口接收数据太频繁，甚至一秒中接收上千包数据，那么系统的中断次数就非常多，这回严重影响系统的性能。所以，在频繁接收数据的情况下，也可以考虑使用轮询的方式。</li>
+</ul>
+<p>这样，为了提高linux在宽带系统上的性能，网络子系统开发者创建了一种基于轮询方式的接口NAPI，它虽然在很多情况下，并不被看好，但处理高流量的高速接口时，用这种NAPI轮询技术处理到达的每一个数据包就足够了，前提是网络设备必须能支持这种模式，就是说一个网络接口必须能保存多个数据包，而且中断能够禁止中断并能在传输和其他事件上打开中断。</p>
+<ul>
+<li>Bcm4329芯片wlan驱动数据传送<br>在bcm4329芯片Wlan驱动中，在函数dhd_attach被调用时，会初始化一个内核线程或一个tasklet中断的下半部。其实这两种方式就是之前的中断和轮询方式的实现版，如果使用轮询，驱动初始化一个内核线程dhd_dpc_thread轮询网络接口接收的数据，中断下半部是中断处理程序的延续，用于处理比较复杂费时的操作，这样就能早点从中断中解放出来，防止拖累系统的性能。</li>
+</ul>
+<p>下面来看看这两种方式的初始化（在dhd_attach.c）：</p>
+<p>/* Set up the bottom halfhandler */</p>
+<p>        if (dhd_dpc_prio &gt;= 0) {<br>                /* Initialize DPC thread */</p>
+<p>                PROC_START(dhd_dpc_thread, dhd,&amp;dhd-&gt;thr_dpc_ctl, 0);</p>
+<p>        } else {<br>                /*  use tasklet for dpc */</p>
+<p>                tasklet_init(&amp;dhd-&gt;tasklet, dhd_dpc,(ulong)dhd);</p>
+<p>                dhd-&gt;thr_dpc_ctl.thr_pid =-1;</p>
+<p>        }</p>
+<p>首先来看看轮询方式的过程：</p>
+<p>dhd_dpc_thread(void *data)</p>
+<p>{<br>        tsk_ctl_t *tsk = (tsk_ctl_t *)data;</p>
+<p>        dhd_info_t <em>dhd = (dhd_info_t</em>)tsk-&gt;parent;</p>
+<p> </p>
+<p>        /* This thread doesn’t need anyuser-level access,</p>
+<p>         * so get rid of all our resources</p>
+<p>         */</p>
+<p>        if (dhd_dpc_prio &gt; 0)</p>
+<p>        {<br>                struct sched_param param;</p>
+<p>                param.sched_priority =(dhd_dpc_prio &lt; MAX_RT_PRIO)?dhd_dpc_prio:(MAX_RT_PRIO-1);</p>
+<p>                setScheduler(current, SCHED_FIFO,&amp;param);</p>
+<p>        }</p>
+<p> </p>
+<p>        DAEMONIZE(“dhd_dpc”);</p>
+<p>        /* DHD_OS_WAKE_LOCK is called indhd_sched_dpc[dhd_linux.c] down below  */</p>
+<p> </p>
+<p>        /* signal: thread has started */</p>
+<p>        complete(&amp;tsk-&gt;completed);</p>
+<p> </p>
+<p>        /* Run until signal received */</p>
+<p>        while (1) {<br>                if (down_interruptible(&amp;tsk-&gt;sema)== 0) {
+ </p>
+<p>                       SMP_RD_BARRIER_DEPENDS();</p>
+<p>                        if (tsk-&gt;terminated){<br>                                break;</p>
+<p>                        }</p>
+<p> </p>
+<p>                        /* Call bus dpc unlessit indicated down (then clean stop) */</p>
+<p>                        if (dhd-&gt;pub.busstate!= DHD_BUS_DOWN) {<br>                                if (dhd_bus_dpc(dhd-&gt;pub.bus)) {</p>
+<p>                                        up(&amp;tsk-&gt;sema);</p>
+<p>                                }</p>
+<p>                                else {<br>                                       DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                                }</p>
+<p>                        } else {<br>                                if (dhd-&gt;pub.up)</p>
+<p>                                       dhd_bus_stop(dhd-&gt;pub.bus, TRUE);</p>
+<p>                               DHD_OS_WAKE_UNLOCK(&amp;dhd-&gt;pub);</p>
+<p>                        }</p>
+<p>                }</p>
+<p>                else</p>
+<p>                        break;</p>
+<p>        }</p>
+<p> </p>
+<p>       complete_and_exit(&amp;tsk-&gt;completed, 0);</p>
+<p>}</p>
+<p>这里是一个永真循环，直到接收到终止信号才停止，该线程就是通过不断调用dhd_bus_dpc函数调用实现轮询的，它的调用逻辑如下所示：</p>
+<p>上面是dhd_dpc_thread的调用逻辑，最后通过netif_rx将数据提交到上层协议，那么，还有一种中断方式时如何实现的呢？上面只看到驱动初始化了一个tasklet，一个中断下半部的实例。其实在dhdsdh_probe函数中已经注册了这个中断处理函数：</p>
+<p>static void *</p>
+<p>dhdsdio_probe(uint16 venid, uint16devid, uint16 bus_no, uint16 slot,</p>
+<p>        uint16 func, uint bustype, void*regsva, osl_t * osh, void *sdh)</p>
+<p>{<br>……</p>
+<p>if (bus-&gt;intr) {<br>                /* Register interrupt callback,but mask it (not operational yet). */</p>
+<p>                DHD_INTR((“%s: disableSDIO interrupts (not interested yet)\n”, <strong>FUNCTION</strong>));</p>
+<p>                bcmsdh_intr_disable(sdh);      //首先禁止SDIO中断，再注册中断</p>
+<p>                if ((ret= bcmsdh_intr_reg(sdh, dhdsdio_isr, bus)) != 0) {</p>
+<p>                        DHD_ERROR((“%s:FAILED: bcmsdh_intr_reg returned %d\n”,</p>
+<p>                                  <strong>FUNCTION</strong>, ret));</p>
+<p>                        goto fail;</p>
+<p>                }</p>
+<p>                DHD_INTR((“%s: registeredSDIO interrupt function ok\n”, <strong>FUNCTION</strong>));</p>
+<p>        } else {<br>                DHD_INFO((“%s: SDIOinterrupt function is NOT registered due to polling mode\n”,</p>
+<p>                           <strong>FUNCTION</strong>));</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>看看Dhdsdio_isr这个中断处理函数干了什么？在函数的最后部分是：</p>
+<p>#if defined(SDIO_ISR_THREAD)</p>
+<p>        DHD_TRACE((“Calling dhdsdio_dpc()from %s\n”, <strong>FUNCTION</strong>));</p>
+<p>        DHD_OS_WAKE_LOCK(bus-&gt;dhd);</p>
+<p>        while (dhdsdio_dpc(bus));</p>
+<p>        DHD_OS_WAKE_UNLOCK(bus-&gt;dhd);</p>
+<p>#else</p>
+<p>        bus-&gt;dpc_sched = TRUE;</p>
+<p>        dhd_sched_dpc(bus-&gt;dhd);</p>
+<p>#endif</p>
+<p>Dhd_sched_dpc函数在最后被调用（上面的while循环调用dhdsdio_dpc，其实和下面的这个调用函数最后的作用是一样的，就不予详述），这个函数的代码如下：</p>
+<p>void</p>
+<p>dhd_sched_dpc(dhd_pub_t *dhdp)</p>
+<p>{<br>        dhd_info_t <em>dhd = (dhd_info_t</em>)dhdp-&gt;info;</p>
+<p> </p>
+<p>        DHD_OS_WAKE_LOCK(dhdp);</p>
+<p>#ifdef DHDTHREAD</p>
+<p>        if (dhd-&gt;thr_dpc_ctl.thr_pid &gt;=0) {<br>               up(&amp;dhd-&gt;thr_dpc_ctl.sema);</p>
+<p>                return;</p>
+<p>        }</p>
+<p>#endif /* DHDTHREAD */</p>
+<p> </p>
+<p>        tasklet_schedule(&amp;dhd-&gt;tasklet);</p>
+<p>}</p>
+<p>就是触发一个中断的下半部tasklet，让cpu选择在一个合适的时候调用dhd_dpc函数，这个函数会调用dhd_bus_dpc，然后进入上面流程图的调用逻辑。</p>
+<p>详细的数据处理过程不详细叙述，可以参考源码来具体分析。</p>
+<p> </p>
+<h1 id="电源管理相关的调用逻辑"><a href="#电源管理相关的调用逻辑" class="headerlink" title="电源管理相关的调用逻辑"></a>电源管理相关的调用逻辑</h1><p>电源管理始终是手机等移动设备最重要的一个功能，尤其对于Android这种智能手机或者说手机电脑化的设备，电源管理更显得十分重要。</p>
+<p>Linux一直在传统的PC和服务器市场上有很好的应用，也有了比较好的电源管理框架，但是对于智能手机等嵌入式设备来说，Linux标准的电源管理就显得不是很适用了，有许多需要改进的地方。Android在这方面做了一些比较好的尝试，添加了一些新的特性，包括wake_lock，early_supend等。这里对wake_lock不做介绍，只介绍WIFI模块在系统将要或正在进入休眠的一些动作，感兴趣的话可以自己查阅android的电源管理相关文章。</p>
+<p>在介绍实质内容之前，先来看看android的电源管理的实现基础：Linux系统的电源管理Suspend框架跟Linux系统的驱动模型（Linux DriverModel）是相关的，也是基于Linux的驱动模型来实现的，下面的图描述了Linux系统电源管理的Suspend系统框架，Linux的Suspend系统分为两部分，一部分是平台无关的核心层，另一个是平台相关的平台层。操作接口都在平台无关的核心层里了，平台相关部分会使用Suspend API将自己的操作函数注册进Suspend核心层里。</p>
+<p>根据Linux系统驱动模型，Device结构描述了一个设备，device_driver是设备的驱动，而class、type和bus分别描述了设备所属的类别、类型和总线。而设备的电源管理也根据此模型分为class级的、type级的、bus级的和驱动级的。如果一个设备的class或者bus确切的知道如何管理一个设备的电源的时候，驱动级别的suspend/resume就可以为空了。这极大的提高了电源管理的高效性和灵活性。</p>
+<p>对于android平台上整个系统是如何一步一步进入休眠的，我这里不做详细介绍，只作出它的大致流程图：</p>
+<p>此流程图显示了系统的休眠的全过程，对WIFI模块来说，我们主要关注early_suspend和suspend以及相应的唤醒过程。当系统屏幕超时或用户（亮屏时）按power键，系统进入休眠流程（这里不讨论可能的中途退出休眠的其它因素），即在没有进程持有wakelock情况下，首先进入early_suspend流程。</p>
+<p>Early_suspend流程的实现基础是：android电源管理系统中定义了一个early_suspend结构链表，里面存放了所有系统中注册了的early_suspend实例，即如果一个模块要在系统进入early_suspend状态有所动作，就必须注册一个early_suspend实例。在WIFI驱动模块中，当驱动流程走到dhd_attach函数时，有相应的early_suspend注册代码：</p>
+<p>Path: dhd/sys/dhd_linux.c</p>
+<p>dhd_pub_t *</p>
+<p>dhd_attach(osl_t *osh, structdhd_bus *bus, uint bus_hdrlen)</p>
+<p>{<br>……</p>
+<p>#ifdef CONFIG_HAS_EARLYSUSPEND</p>
+<p>        dhd-&gt;early_suspend.level =EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 20;</p>
+<p>        dhd-&gt;early_suspend.suspend = dhd_early_suspend;</p>
+<p>       dhd-&gt;early_suspend.resume = dhd_late_resume;</p>
+<p>        register_early_suspend(&amp;dhd-&gt;early_suspend);</p>
+<p>        dhd_state |= DHD_ATTACH_STATE_EARLYSUSPEND_DONE;</p>
+<p>#endif</p>
+<p>……</p>
+<p>}</p>
+<p>红色区域初始化了dhd结构的两个early_suspend函数，并将其注册到电源管理系统。early_suspend的休眠函数的代码如下：</p>
+<p>static void dhd_early_suspend(structearly_suspend *h)</p>
+<p>{<br>        struct dhd_info *dhd = container_of(h,struct dhd_info, early_suspend);</p>
+<p> </p>
+<p>        DHD_TRACE((“%s: enter\n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>        if (dhd)</p>
+<p>                dhd_suspend_resume_helper(dhd, 1);</p>
+<p>}</p>
+<p>调用dhd_suspend_resume_helper函数，别看函数名中有resume单词，其实early_suspend和late_resume都是通过这个函数实现功能的：</p>
+<p>static void dhd_suspend_resume_helper(structdhd_info *dhd, int val)</p>
+<p>{<br>        dhd_pub_t *dhdp = &amp;dhd-&gt;pub;</p>
+<p> </p>
+<p>        DHD_OS_WAKE_LOCK(dhdp);</p>
+<p>        /* Set flag when early suspend wascalled */</p>
+<p>        dhdp-&gt;in_suspend = val;</p>
+<p>        if ((!dhdp-&gt;suspend_disable_flag)&amp;&amp; (dhd_check_ap_wfd_mode_set(dhdp) == FALSE))</p>
+<p>                dhd_set_suspend(val, dhdp);</p>
+<p>        DHD_OS_WAKE_UNLOCK(dhdp);</p>
+<p>}</p>
+<p> </p>
+<p>#if defined(CONFIG_HAS_EARLYSUSPEND)          //看这里，如果系统配置了EARLYSUSPEND       ，则系统会使用这部分代码，其实early_suspend是android对linux内核的电源管理的优化，所以如果你使用的是android平台，一定要配置该选项</p>
+<p>static int dhd_set_suspend(intvalue, dhd_pub_t *dhd)</p>
+<p>{<br>……</p>
+<p>        if (dhd &amp;&amp; dhd-&gt;up) {<br>                if(value &amp;&amp; dhd-&gt;in_suspend) {        //early_suspend</p>
+<p> </p>
+<p>                                /* Kernelsuspended */</p>
+<p>                               DHD_ERROR((“%s: force extra Suspend setting \n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_PM, (char *)&amp;power_mode,</p>
+<p>                                                sizeof(power_mode), TRUE, 0);</p>
+<p> </p>
+<p>                                /* Enablepacket filter, only allow unicast packet to send up */</p>
+<p>                               dhd_set_packet_filter(1, dhd);</p>
+<p> </p>
+<p>                                /* If DTIM skipis set up as default, force it to wake</p>
+<p>                                 * each thirdDTIM for better power savings.  Note that</p>
+<p>                                 * one sideeffect is a chance to miss BC/MC packet.</p>
+<p>                                 */</p>
+<p>                                bcn_li_dtim =dhd_get_dtim_skip(dhd);</p>
+<p>                                bcm_mkiovar(“bcn_li_dtim”,(char *)&amp;bcn_li_dtim,</p>
+<p>                                        4,iovbuf, sizeof(iovbuf));</p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p> </p>
+<p>                                /* Disable firmwareroaming during suspend */</p>
+<p>                               bcm_mkiovar(“roam_off”, (char *)&amp;roamvar, 4,</p>
+<p>                                        iovbuf,sizeof(iovbuf));</p>
+<p>                               dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p>                        } else {          //late_resume</p>
+<p> </p>
+<p>                                /* Kernelresumed  */</p>
+<p>                               DHD_TRACE((“%s: Remove extra suspend setting \n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>                                power_mode =PM_FAST;</p>
+<p>                               dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&amp;power_mode,</p>
+<p>                                                sizeof(power_mode), TRUE, 0);</p>
+<p> </p>
+<p>                                /* disable pktfilter */</p>
+<p>                                dhd_set_packet_filter(0,dhd);</p>
+<p> </p>
+<p>                                /* restorepre-suspend setting for dtim_skip */</p>
+<p>                               bcm_mkiovar(“bcn_li_dtim”, (char *)&amp;dhd-&gt;dtim_skip,</p>
+<p>                                        4, iovbuf, sizeof(iovbuf));</p>
+<p> </p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p>                                roamvar =dhd_roam_disable;</p>
+<p>                               bcm_mkiovar(“roam_off”, (char *)&amp;roamvar, 4, iovbuf,</p>
+<p>                                       sizeof(iovbuf));</p>
+<p>                                dhd_wl_ioctl_cmd(dhd,WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);</p>
+<p>                        }</p>
+<p>        }</p>
+<p> </p>
+<p>  return 0;</p>
+<p>}</p>
+<p>#endif</p>
+<p>    具体做什么内容，可以不用过多理会，一般只是会对该模块做些最基本的低功耗设置，其实真正的低功耗设置时在suspend中完成的。一般的模块也不需要注册early_suspend实例，但是背光灯，键盘LED和LCD屏是一定要在注册的。</p>
+<p>       Early_suspend注册成功后，会被挂接到电源管理系统中的一个链表上，当系统进入early_suspend流程时，会逐一调用该链表中的每一个实例的early_suspend回调函数，使设备进入相应的状态。在完成early_suspend流程后，系统检测wake_lock（也是被链表管理，其实不止一个），如果没有进程持有wake_lock包括main_wake_lock，系统进入suspend流程。</p>
+<p>       同样，suspend流程的实施也是需要系统支持的，需要实现电源管理的模块需要实现suspend和resume两个函数，并注册到系统中，对于WIFI设备的电源管理函数的注册在调用wifi_add_dev函数时被注册：</p>
+<p>Path：wl/sys/wl_android.c</p>
+<p>static struct platform_driverwifi_device = {<br>        .probe          = wifi_probe,</p>
+<p>        .remove         =wifi_remove,</p>
+<p>        .suspend        = wifi_suspend,</p>
+<p>        .resume         = wifi_resume,</p>
+<p>        .driver         = {<br>        .name  = “bcmdhd_wlan”,</p>
+<p>        }</p>
+<p>};</p>
+<p> </p>
+<p>static struct platform_driverwifi_device_legacy = {<br>        .probe          = wifi_probe,</p>
+<p>        .remove         = wifi_remove,</p>
+<p>        .suspend        =wifi_suspend,</p>
+<p>        .resume         = wifi_resume,</p>
+<p>        .driver         = {<br>        .name  = “bcm4329_wlan”,</p>
+<p>        }</p>
+<p>};</p>
+<p> </p>
+<p>static int wifi_add_dev(void)</p>
+<p>{<br>        DHD_TRACE((“## Callingplatform_driver_register\n”));</p>
+<p>        platform_driver_register(&amp;wifi_device);</p>
+<p>       platform_driver_register(&amp;wifi_device_legacy);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>    Wifi_suspend和wifi_resume随着wifi_device设备的注册而注册，这样当系统进入suspend流程后，就可以调用每个设备上的电源管理函数来使设备进入休眠状态了。</p>
+<p>       Wifi设备的休眠：</p>
+<p>static int wifi_suspend(structplatform_device *pdev, pm_message_t state)</p>
+<p>{<br>        DHD_TRACE((“##&gt; %s\n”,<strong>FUNCTION</strong>));</p>
+<p>#if (LINUX_VERSION_CODE &lt;=KERNEL_VERSION(2, 6, 39)) &amp;&amp; defined(OOB_INTR_ONLY)</p>
+<p>        bcmsdh_oob_intr_set(0);</p>
+<p>#endif</p>
+<p>        return 0;</p>
+<p>}</p>
+<p> </p>
+<p>static int wifi_resume(structplatform_device *pdev)</p>
+<p>{<br>        DHD_TRACE((“##&gt; %s\n”,<strong>FUNCTION</strong>));</p>
+<p>#if (LINUX_VERSION_CODE &lt;=KERNEL_VERSION(2, 6, 39)) &amp;&amp; defined(OOB_INTR_ONLY)</p>
+<p>        if (dhd_os_check_if_up(bcmsdh_get_drvdata()))</p>
+<p>                bcmsdh_oob_intr_set(1);</p>
+<p>#endif</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>       上面的两个电源管理函数都调用bcmsdh_oob_intr_set函数，但是传递的参数不同，在wifi_suspend函数中传递0，表示禁止wifi设备对应的oob中断，而wifi_resume的作用恰恰相反。</p>
+<p>       Bcmsdh_oob_intr_set函数的定义如下：</p>
+<p>PATH：bcmsdio/sys/bcmsdh_linux.c</p>
+<p>#if defined(OOB_INTR_ONLY)   //该中断的使用需要配置</p>
+<p>void bcmsdh_oob_intr_set(bool enable)</p>
+<p>{<br>        static bool curstate = 1;</p>
+<p>        unsigned long flags;</p>
+<p> </p>
+<p>       spin_lock_irqsave(&amp;sdhcinfo-&gt;irq_lock, flags);</p>
+<p>        if (curstate != enable) {</p>
+<p>                if (enable)</p>
+<p>                       enable_irq(sdhcinfo-&gt;oob_irq);</p>
+<p>                else</p>
+<p>                       disable_irq_nosync(sdhcinfo-&gt;oob_irq);</p>
+<p>                curstate =enable;</p>
+<p>        }</p>
+<p>       spin_unlock_irqrestore(&amp;sdhcinfo-&gt;irq_lock, flags);</p>
+<p>}</p>
+<p>      </p>
+<p>此中断是在打开wifi网络设备的时候被注册的，流程如下：</p>
+<p>static int</p>
+<p>dhd_open(struct net_device *net)</p>
+<p>{<br>……</p>
+<p>               if (dhd-&gt;pub.busstate !=DHD_BUS_DATA) {
+ </p>
+<p>                        /* try to bring up bus*/</p>
+<p>                        if ((ret = dhd_bus_start(&amp;dhd-&gt;pub)) !=0) {</p>
+<p>                               DHD_ERROR((“%s: failed with code %d\n”, <strong>FUNCTION</strong>, ret));</p>
+<p>                                ret = -1;</p>
+<p>                                goto exit;</p>
+<p>                        }</p>
+<p> </p>
+<p>                }</p>
+<p>……</p>
+<p>}</p>
+<p> </p>
+<p> </p>
+<p>dhd_bus_start(dhd_pub_t *dhdp)</p>
+<p>{<br>……</p>
+<p>#if defined(OOB_INTR_ONLY)</p>
+<p>        /* Host registration for OOB interrupt*/</p>
+<p>        if(bcmsdh_register_oob_intr(dhdp)) {</p>
+<p>……</p>
+<p>}</p>
+<p>在系统进入suspend状态后，wifi设备进入禁止中断状态，不再接收处理网络发来的数据，系统进入sleep状态，当然还有很多cpu在suspend之后进入sleep状态，但此时系统clock中断并没有被禁止，而且pmu还正常工作，以期对power键和充电器连接的检测。</p>
+
+    </div>
+
+    
+    
+    
+    <div>
+      
+        <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:14px;">-------------本文结束<i class="fa fa-paw"></i>感谢您的阅读-------------</div>
+    
+</div>
+      
+    </div>
+        <div class="reward-container">
+  <div>坚持原创技术分享，您的支持将鼓励我继续创作！</div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="孙涛&占莹莹 微信支付">
+        <p>微信支付</p>
+      </div>
+      
+      <div style="display: inline-block;">
+        <img src="/images/alipay.jpg" alt="孙涛&占莹莹 支付宝">
+        <p>支付宝</p>
+      </div>
+
+  </div>
+</div>
+
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>孙涛&占莹莹
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/" title="信号幽灵wifi（第四篇）">http://example.com/2021/03/06/信号幽灵wifi（第四篇）/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fa fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+            <div class="social-item">
+              <a target="_blank" class="social-link" href="/atom.xml">
+                <span class="icon">
+                  <i class="fa fa-rss"></i>
+                </span>
+
+                <span class="label">RSS</span>
+              </a>
+            </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%9F%A5%E8%AF%86/" rel="tag"><i class="fa fa-tag"></i>
+              <a href="/tags/%E5%88%86%E4%BA%AB/" rel="tag"><i class="fa fa-tag"></i>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/" rel="prev" title="信号幽灵wifi（第三篇）">
+      <i class="fa fa-chevron-left"></i> 信号幽灵wifi（第三篇）
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+  
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        <iframe frameborder="no" border="0" marginwidth="0" marginheight="0" width=330 height=86 src="//music.163.com/outchain/player?type=2&id=28764319&auto=1&height=66"></iframe>
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#IOCTL%E7%9A%84%E8%B0%83%E7%94%A8%E9%80%BB%E8%BE%91"><span class="nav-number">1.</span> <span class="nav-text">IOCTL的调用逻辑</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%9A%84%E4%BC%A0%E9%80%81"><span class="nav-number">2.</span> <span class="nav-text">数据的传送</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%9A%84%E6%8E%A5%E6%94%B6"><span class="nav-number">3.</span> <span class="nav-text">数据的接收</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86%E7%9B%B8%E5%85%B3%E7%9A%84%E8%B0%83%E7%94%A8%E9%80%BB%E8%BE%91"><span class="nav-number">4.</span> <span class="nav-text">电源管理相关的调用逻辑</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="孙涛&占莹莹"
+      src="/images/1.jpg">
+  <p class="site-author-name" itemprop="name">孙涛&占莹莹</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">14</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/shatangst" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;shatangst" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:1471487544@qq.com" title="E-Mail → mailto:1471487544@qq.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://weibo.com/5983778030/profile?topnav=1&wvr=6&is_all=1" title="微博 → https:&#x2F;&#x2F;weibo.com&#x2F;5983778030&#x2F;profile?topnav&#x3D;1&amp;wvr&#x3D;6&amp;is_all&#x3D;1" rel="noopener" target="_blank"><i class="fa fa-fw fa-weibo"></i>微博</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://space.bilibili.com/96799044" title="BiLiBiLi → https:&#x2F;&#x2F;space.bilibili.com&#x2F;96799044" rel="noopener" target="_blank"><i class="fa fa-fw fa-bilibili"></i>BiLiBiLi</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/vgMPFHsZumYftnW" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;vgMPFHsZumYftnW" rel="noopener" target="_blank"><i class="fa fa-fw fa-twitter"></i>Twitter</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.facebook.com/profile.php?id=100026465884414" title="Facebook → https:&#x2F;&#x2F;www.facebook.com&#x2F;profile.php?id&#x3D;100026465884414" rel="noopener" target="_blank"><i class="fa fa-fw fa-facebook"></i>Facebook</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://youtube.com/" title="YouTube → https:&#x2F;&#x2F;youtube.com&#x2F;" rel="noopener" target="_blank"><i class="fa fa-fw fa-youtube"></i>YouTube</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.instagram.com/sugar_tttttttttttt/" title="Instagram → https:&#x2F;&#x2F;www.instagram.com&#x2F;sugar_tttttttttttt&#x2F;" rel="noopener" target="_blank"><i class="fa fa-fw fa-instagram"></i>Instagram</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">孙涛&占莹莹</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v5.4.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v7.7.2
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  
+  <script color='0,0,0' opacity='0.5' zIndex='-1' count='150' src="/lib/canvas-nest/canvas-nest.min.js"></script>
+  <script size="300" alpha="0.6" zIndex="-1" src="/lib/canvas-ribbon/canvas-ribbon.js"></script>
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//unpkg.com/valine/dist/Valine.min.js', () => {
+    var GUEST = ['nick', 'mail', 'link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item => {
+      return GUEST.includes(item);
+    });
+    new Valine({
+      el         : '#valine-comments',
+      verify     : false,
+      notify     : false,
+      appId      : 'H8NYfDQXEpQ09BmbBcpnXcUh-gzGzoHsz',
+      appKey     : '9E7LMaKrguVpdiT9NDGzyjrN',
+      placeholder: "说点什么吧",
+      avatar     : 'mm',
+      meta       : guest,
+      pageSize   : '10' || 10,
+      visitor    : false,
+      lang       : '' || 'zh-cn',
+      path       : location.pathname,
+      recordIP   : false,
+      serverURLs : ''
+    });
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

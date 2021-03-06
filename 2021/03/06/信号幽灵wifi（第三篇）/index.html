@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/2.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/1.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.7.2","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"default"},"back2top":{"enable":true,"sidebar":true,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="WLAN驱动结构介绍 SDIO驱动在drivers&#x2F;mmc下面是mmc卡，SD卡和SDIO卡驱动部分，其中包括host驱动，card驱动和core部分，由于网络接口卡挂接在SDIO总线上，所以在此之前我们先看一下SDIO的驱动结构。其驱动在drivers&#x2F;mmc目录下的结构为：    |– mmc |   |– card |   |– core |   |– host   主要关注的目录是core">
+<meta property="og:type" content="article">
+<meta property="og:title" content="信号幽灵wifi（第三篇）">
+<meta property="og:url" content="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/index.html">
+<meta property="og:site_name" content="“互联网+”作品">
+<meta property="og:description" content="WLAN驱动结构介绍 SDIO驱动在drivers&#x2F;mmc下面是mmc卡，SD卡和SDIO卡驱动部分，其中包括host驱动，card驱动和core部分，由于网络接口卡挂接在SDIO总线上，所以在此之前我们先看一下SDIO的驱动结构。其驱动在drivers&#x2F;mmc目录下的结构为：    |– mmc |   |– card |   |– core |   |– host   主要关注的目录是core">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-03-06T10:38:13.000Z">
+<meta property="article:modified_time" content="2021-03-06T10:41:30.830Z">
+<meta property="article:author" content="孙涛&amp;占莹莹">
+<meta property="article:tag" content="知识">
+<meta property="article:tag" content="分享">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true
+  };
+</script>
+
+  <title>信号幽灵wifi（第三篇） | “互联网+”作品</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="“互联网+”作品" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<a target="_blank" rel="noopener" href="https://github.com/shatangst" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">“互联网+”作品</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">4</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档<span class="badge">14</span></a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+
+</nav>
+  <div class="site-search">
+    <div class="popup search-popup">
+    <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocorrect="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result"></div>
+
+</div>
+<div class="search-pop-overlay"></div>
+
+  </div>
+</div>
+    </header>
+
+    
+
+  <a href="https://github.com/shatangst/" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/1.jpg">
+      <meta itemprop="name" content="孙涛&占莹莹">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="“互联网+”作品">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          信号幽灵wifi（第三篇）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-06 18:38:13 / 修改时间：18:41:30" itemprop="dateCreated datePublished" datetime="2021-03-06T18:38:13+08:00">2021-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%A7%91%E6%8A%80/" itemprop="url" rel="index"><span itemprop="name">科技</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="fa fa-comment-o"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="WLAN驱动结构介绍"><a href="#WLAN驱动结构介绍" class="headerlink" title="WLAN驱动结构介绍"></a>WLAN驱动结构介绍</h1><ul>
+<li>SDIO驱动<br>在drivers/mmc下面是mmc卡，SD卡和SDIO卡驱动部分，其中包括host驱动，card驱动和core部分，由于网络接口卡挂接在SDIO总线上，所以在此之前我们先看一下SDIO的驱动结构。其驱动在drivers/mmc目录下的结构为：</li>
+</ul>
+<p> </p>
+<p>|– mmc</p>
+<p>|   |– card</p>
+<p>|   |– core</p>
+<p>|   |– host</p>
+<p> </p>
+<p>主要关注的目录是core目录，这个目录是真个驱动的核心目录，是媒体卡的通用代码部分，包括core.c，host.c和sdio.c等。CORE 层完成了不同协议和规范的实现，并为HOST 层的驱动提供了接口函数，该目录完成sdio总线的注册操作，相应的ops操作，以及支持mmc的代码。详细的情况将在函数接口部分详细讨论。</p>
+<p>Host目录是不同平台根据平台的特性而编写的host驱动。</p>
+<h2 id="Boardcom无线通讯芯片"><a href="#Boardcom无线通讯芯片" class="headerlink" title="Boardcom无线通讯芯片"></a>Boardcom无线通讯芯片</h2><ul>
+<li>概述<br>全球有线和无线通信半导体市场的领导者Broadcom（博通）公司（Nasdaq：BRCM）宣布，推出最新无线组合芯片BCM4330，该芯片可支持更多媒体形式和数据应用，且不会增大智能手机、平板电脑及其他移动设备的尺寸或缩短其电池寿命。BCM4330在单个芯片上集成了业界领先的Broadcom 802.11n Wi-Fi、蓝牙和FM无线技术，与分立式半导体器件组成的解决方案相比，在成本、尺寸、功耗和性能上有显著优势，是移动设备的理想选择。</li>
+</ul>
+<p>BCM4330采用了新的Wi-Fi和蓝牙标准，可支持新的、令人振奋的应用。例如，Broadcom BCM4330是业界第一款经过蓝牙4.0标准认证的组合芯片解决方案， 集成了蓝牙低功耗（BLE）标准。该标准使蓝牙技术能以超低功耗运行，因此BCM4330非常适用于需要很长电池寿命的系统，如无线传感器、医疗和健身监控设备等。BCM4330还支持Wi-Fi Direct™和蓝牙高速（HS）标准，因此采用BCM4330的移动设备能直接相互通信，而不必先连接到接入点、成为传统网络的一部分，从而为很多无线设备之间新的应用和使用模式创造了机会。</p>
+<p>Broadcom一直支持所有主流的操作系统（OS）平台，如MicrosoftWindows和Windows Phone、Google Chrome、Android等等，而且不仅是BCM4330，所有蓝牙、WLAN和GPS芯片组都提供这样的支持。</p>
+<ul>
+<li>源码<br>Bcm4330驱动源码一般被厂商单独提供，如果要在开发的LINUX系统中（当然它还支持多种平台）使用该源码，可以添加到linux kernel源码树里，也可以单独组织存放，可以直接编译到kernel，也可以编译成模块，然后再系统启动的流程中或其他适当的实际加载到kernel中，一般建议单独组织并编译成模块在需要的时候加载如kernel。</li>
+</ul>
+<p>|– src</p>
+<p>|   |– bcmsdio</p>
+<p>|   |– dhd</p>
+<p>|   |–dongle</p>
+<p>|   |–include</p>
+<p>|   |– shared</p>
+<p>|   |– wl</p>
+<p> </p>
+<p>这里主要内容到bcmsdio，dhd和wl三个目录下，bcm4330驱动的入口在dhd/sys/dhd_linux.c文件中的dhd_module()函数，设备的初始化和相关驱动注册都从这里开始，</p>
+<h2 id="详细接口及代码分析"><a href="#详细接口及代码分析" class="headerlink" title="详细接口及代码分析"></a>详细接口及代码分析</h2><ul>
+<li>WIFI驱动流程分析<br>    以boardcom bcm4329芯片驱动为例，相应的函数流程图如下：       </li>
+</ul>
+<p>                       </p>
+<ul>
+<li>WIFI设备注册流程<br>Platform_driver_register(wifi_device[_legacy])的调用将wifi_device[_legacy]驱动注册到系统中，wifi_device_legacy是为了兼容老版本的驱动。</li>
+</ul>
+<p>Path: wl/sys/wl_android.c</p>
+<p>Static struct Platform_driver wifi_device ={<br>         .probe     =     wifi_probe</p>
+<p>         .remove   =     wifi_remove</p>
+<p>         .suspend  =     wifi_supend</p>
+<p>         .resume   =     wifi_resume</p>
+<p>         .driver     =     {<br>         .name      =     “bcmdhd_wlan”</p>
+<p>}</p>
+<p>}</p>
+<p> </p>
+<p>Static struct Platform_driver wifi_device_legacy ={<br>         .probe     =     wifi_probe</p>
+<p>         .remove   =     wifi_remove</p>
+<p>         .suspend  =     wifi_supend</p>
+<p>         .resume   =     wifi_resume</p>
+<p>         .driver     =     {<br>         .name      =     “bcm4329_wlan”</p>
+<p>}</p>
+<p>}</p>
+<p>上面的展示了wifi平台设备驱动的注册过程，那么在平台相关的代码区应该有wifi作为平台设备被初始化和注册的地方：</p>
+<p>Path: kernel/arch/arm/mach-msm/msm_</p>
+<p>static struct resource mahimahi_wifi_resources[] = {</p>
+<p>        [0] = {<br>                .name           = “bcm4329_wlan_irq”,</p>
+<p>                .start          =MSM_GPIO_TO_INT(MAHIMAHI_GPIO_WIFI_IRQ),</p>
+<p>                .end            = MSM_GPIO_TO_INT(MAHIMAHI_GPIO_WIFI_IRQ),</p>
+<p>                .flags          = IORESOURCE_IRQ |IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static structwifi_platform_data mahimahi_wifi_control = {<br>        .set_power      = mahimahi_wifi_power,</p>
+<p>        .set_reset      = mahimahi_wifi_reset,</p>
+<p>        .set_carddetect = mahimahi_wifi_set_carddetect,</p>
+<p>        .mem_prealloc   = mahimahi_wifi_mem_prealloc,</p>
+<p>};</p>
+<p> </p>
+<p>static struct platform_device mahimahi_wifi_device = {</p>
+<p>        .name           = “bcm4329_wlan”,</p>
+<p>        .id             = 1,</p>
+<p>        .num_resources  = ARRAY_SIZE(mahimahi_wifi_resources),</p>
+<p>        .resource       = mahimahi_wifi_resources,</p>
+<p>        .dev            = {</p>
+<p>               .platform_data = &amp;mahimahi_wifi_control,</p>
+<p>        },</p>
+<p>};</p>
+<p>上面是对wifi_device设备的初始化，下面是对该设备的注册：</p>
+<p>static int __initmahimahi_wifi_init(void)</p>
+<p>{<br>        int ret;</p>
+<p> </p>
+<p>        if (!machine_is_mahimahi())</p>
+<p>                return 0;</p>
+<p> </p>
+<p>        printk(“%s: start\n”,<strong>func</strong>);</p>
+<p>       mahimahi_wifi_update_nvs(“sd_oobonly=1\r\n”, 0);</p>
+<p>       mahimahi_wifi_update_nvs(“btc_params70=0x32\r\n”, 1);</p>
+<p>        mahimahi_init_wifi_mem();</p>
+<p>        ret = platform_device_register(&amp;mahimahi_wifi_device);</p>
+<p>        return ret;</p>
+<p>}</p>
+<p> </p>
+<p>late_initcall(mahimahi_wifi_init);      //表明在系统启动的后期会自动调用加载该模块</p>
+<p>这样，通过上面的初始化和注册流程，wifi设备作为平台设备和驱动就可以握手成功了，这里的平台驱动只是对wifi设备的简单管理，如对wifi设备的挂起和恢复等操作了。但是在wifi设备初始化之前是不能够被挂起和恢复的，那么wifi设备是如何初始化的呢？</p>
+<p>Path: wl/sys/wl_android.c</p>
+<p>static int wifi_probe(structplatform_device *pdev)</p>
+<p>{<br>        struct wifi_platform_data *wifi_ctrl =</p>
+<p>                (structwifi_platform_data *)(pdev-&gt;dev.platform_data);</p>
+<p> </p>
+<p>        DHD_ERROR((“## %s\n”,<strong>FUNCTION</strong>));</p>
+<p>        wifi_irqres = platform_get_resource_byname(pdev,IORESOURCE_IRQ, “bcmdhd_wlan_irq”);</p>
+<p>        if (wifi_irqres == NULL)</p>
+<p>                wifi_irqres =platform_get_resource_byname(pdev,</p>
+<p>                        IORESOURCE_IRQ,”bcm4329_wlan_irq”);</p>
+<p>        wifi_control_data = wifi_ctrl;</p>
+<p> </p>
+<p>        wifi_set_power(1,0);   /* Power On */</p>
+<p>       wifi_set_carddetect(1); /* CardDetect (0-&gt;1) */</p>
+<p> </p>
+<p>        up(&amp;wifi_control_sem);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>这是wifi平台设备驱动注册时成功匹配wifi设备后调用的函数wifi_probe()，它的主要工作就是从wifi设备中获取终端资源，并获取wifi_platform_data类型结构赋予wifi_control_data变量，这一步很重要，下面就可以看出了它的重要性。然后调用wifi_set_power和wifi_set_carddetect函数给wifi芯片上电并检测。</p>
+<p>int wifi_set_power(int on, unsignedlong msec)</p>
+<p>{<br>        DHD_ERROR((“%s = %d\n”,<strong>FUNCTION</strong>, on));</p>
+<p>        if (wifi_control_data &amp;&amp;wifi_control_data-&gt;set_power) {<br>                wifi_control_data-&gt;set_power(on);</p>
+<p>        }</p>
+<p>        if (msec)</p>
+<p>                msleep(msec);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>Wifi_set_power函数中调用wifi_control_data-&gt;set_power(on)，wifi_control_data就是刚才说的那个重要变量，注意它是从wifi_device平台设备的wifi_platform_data获取的，那么看看上面的wifi_device初始化的代码：</p>
+<p>static struct platform_device mahimahi_wifi_device = {</p>
+<p>        .name           = “bcm4329_wlan”,</p>
+<p>        .id             = 1,</p>
+<p>        .num_resources  = ARRAY_SIZE(mahimahi_wifi_resources),</p>
+<p>        .resource       = mahimahi_wifi_resources,</p>
+<p>        .dev            = {</p>
+<p>                .platform_data =&amp;mahimahi_wifi_control,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static struct wifi_platform_datamahimahi_wifi_control= {<br>        .set_power      = mahimahi_wifi_power,</p>
+<p>        .set_reset      = mahimahi_wifi_reset,</p>
+<p>        .set_carddetect = mahimahi_wifi_set_carddetect,</p>
+<p>        .mem_prealloc   = mahimahi_wifi_mem_prealloc,</p>
+<p>};</p>
+<p>所以它实际调用的是mahimahi_wifi_power函数，该函数的定义在kernel/arch/arm /mach-msm/board-mahimahi-mmc.c之中：</p>
+<p>int mahimahi_wifi_power(int on)</p>
+<p>{<br>       printk(“%s: %d\n”, <strong>func</strong>, on);</p>
+<p> </p>
+<p>        if (on) {<br>               config_gpio_table(wifi_on_gpio_table,</p>
+<p>                                  ARRAY_SIZE(wifi_on_gpio_table));</p>
+<p>               mdelay(50);</p>
+<p>        } else {<br>               config_gpio_table(wifi_off_gpio_table,</p>
+<p>                                 ARRAY_SIZE(wifi_off_gpio_table));</p>
+<p>        }</p>
+<p> </p>
+<p>        mdelay(100);</p>
+<p>        gpio_set_value(MAHIMAHI_GPIO_WIFI_SHUTDOWN_N,on); /* WIFI_SHUTDOWN */</p>
+<p>        mdelay(200);</p>
+<p> </p>
+<p>       mahimahi_wifi_power_state = on;</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>调用gpio_set_value操作wifi芯片，给wifi芯片上电。那么来看看wifi_set_ carddetect函数究竟干了什么：</p>
+<p>Path：wl/sys/wl_android.c</p>
+<p>static int wifi_set_carddetect(int on)</p>
+<p>{<br>       DHD_ERROR((“%s = %d\n”, <strong>FUNCTION</strong>, on));</p>
+<p>        if(wifi_control_data &amp;&amp; wifi_control_data-&gt;set_carddetect) {<br>               wifi_control_data-&gt;set_carddetect(on);</p>
+<p>        }</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>同样会调用wifi_device的mahimahi_wifi_set_carddetect函数：</p>
+<p>Path:kernel/arch/arm/mach-msm/board-mahimahi-mmc.c</p>
+<p>int mahimahi_wifi_set_carddetect(int val)</p>
+<p>{<br>       pr_info(“%s: %d\n”, <strong>func</strong>, val);</p>
+<p>       mahimahi_wifi_cd = val;</p>
+<p>        if(wifi_status_cb) {<br>                wifi_status_cb(val,wifi_status_cb_devid);</p>
+<p>        } else</p>
+<p>               pr_warning(“%s: Nobody to notify\n”, <strong>func</strong>);</p>
+<p>        return 0;</p>
+<p>}</p>
+<p>Wifi_status_cb代码：</p>
+<p>static int mahimahi_wifi_status_register(</p>
+<p>                        void (*callback)(intcard_present, void *dev_id),</p>
+<p>                        void *dev_id)</p>
+<p>{<br>        if (wifi_status_cb)</p>
+<p>                return -EAGAIN;</p>
+<p>        wifi_status_cb = callback;</p>
+<p>        wifi_status_cb_devid = dev_id;</p>
+<p>        return 0;</p>
+<p>}</p>
+<p> </p>
+<p>static unsigned intmahimahi_wifi_status(struct device *dev)</p>
+<p>{<br>        return mahimahi_wifi_cd;</p>
+<p>}</p>
+<p> </p>
+<p>static structmmc_platform_data mahimahi_wifi_data = {<br>        .ocr_mask               = MMC_VDD_28_29,</p>
+<p>        .built_in               = 1,</p>
+<p>        .status                 = mahimahi_wifi_status,</p>
+<p>        .register_status_notify= mahimahi_wifi_status_register,</p>
+<p>        .embedded_sdio          = &amp;mahimahi_wifi_emb_data,</p>
+<p>};</p>
+<p>由上面代码；不难看出会有个地方调用mahimahi_wifi_status_register设置wifi_status_cb这个回调函数，可以跟踪这个mahimahi_wifi_data结构体，来看看它被传递给了谁：</p>
+<p>int msm_add_sdcc(unsigned intcontroller, struct mmc_platform_data *plat,</p>
+<p>                 unsigned int stat_irq,unsigned long stat_irq_flags);</p>
+<p> </p>
+<p>int __initmahimahi_init_mmc(unsigned int sys_rev, unsigned debug_uart)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        msm_add_sdcc(1, &amp;mahimahi_wifi_data, 0, 0);</p>
+<p> </p>
+<p>       ……</p>
+<p>        if (system_rev &gt; 0)</p>
+<p>                msm_add_sdcc(2,&amp;mahimahi_sdslot_data, 0, 0);</p>
+<p>        else {<br>                mahimahi_sdslot_data.status =mahimahi_sdslot_status_rev0;</p>
+<p>               mahimahi_sdslot_data.register_status_notify = NULL;</p>
+<p>               set_irq_wake(MSM_GPIO_TO_INT(MAHIMAHI_GPIO_SDMC_CD_REV0_N), 1);</p>
+<p>                msm_add_sdcc(2, &amp;mahimahi_sdslot_data,</p>
+<p>         ……</p>
+<p>}</p>
+<p>可以跟踪到这里Path：kernel/arch/arm/mach-msm/devices-msm7x30.c</p>
+<p>struct platform_device msm_device_sdc1 = {</p>
+<p>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 1,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc1),</p>
+<p>        .resource       = resources_sdc1,</p>
+<p>        .dev            = {</p>
+<p>               .coherent_dma_mask      =0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>struct platform_device msm_device_sdc2 = {</p>
+<p>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 2,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc2),</p>
+<p>        .resource       = resources_sdc2,</p>
+<p>        .dev            = {</p>
+<p>               .coherent_dma_mask      =0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>struct platform_devicemsm_device_sdc3 = {<br>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 3,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc3),</p>
+<p>        .resource       = resources_sdc3,</p>
+<p>        .dev            = {<br>                .coherent_dma_mask      = 0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>struct platform_device msm_device_sdc4= {<br>        .name           = “msm_sdcc”,</p>
+<p>        .id             = 4,</p>
+<p>        .num_resources  = ARRAY_SIZE(resources_sdc4),</p>
+<p>        .resource       = resources_sdc4,</p>
+<p>        .dev            = {<br>                                                                                                                         439,2-16      62%</p>
+<p>                .coherent_dma_mask      = 0xffffffff,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static struct platform_device *msm_sdcc_devices[] __initdata = {</p>
+<p>        &amp;msm_device_sdc1,</p>
+<p>        &amp;msm_device_sdc2,</p>
+<p>        &amp;msm_device_sdc3,</p>
+<p>        &amp;msm_device_sdc4,</p>
+<p>};</p>
+<p> </p>
+<p>int __initmsm_add_sdcc(unsigned int controller, struct mmc_platform_data *plat,</p>
+<p>                        unsigned int stat_irq,unsigned long stat_irq_flags)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        pdev =msm_sdcc_devices[controller-1]; //因为传过来的controller是1，所以下面注册的是第一个平台设备</p>
+<p>        pdev-&gt;dev.platform_data= plat;  //被传递给平台设备的platform_data</p>
+<p> </p>
+<p>        res =platform_get_resource_byname(pdev, IORESOURCE_IRQ, “status_irq”);</p>
+<p>        if (!res)</p>
+<p>                return -EINVAL;</p>
+<p>        else if (stat_irq) {<br>                res-&gt;start = res-&gt;end =stat_irq;</p>
+<p>                res-&gt;flags &amp;=~IORESOURCE_DISABLED;</p>
+<p>                res-&gt;flags |=stat_irq_flags;</p>
+<p>        }</p>
+<p> </p>
+<p>        return platform_device_register(pdev); //如上所述</p>
+<p>}</p>
+<p>那么这个平台设备是什么呢，就是sd卡控制器，也就是前面说的host驱动所驱动的主机控制设备。</p>
+<p>Path: drivers/mmc/host/msm_sdcc.c</p>
+<p>static struct platform_drivermsmsdcc_driver = {<br>        .probe          = msmsdcc_probe,</p>
+<p>        .suspend        = msmsdcc_suspend,</p>
+<p>        .resume         = msmsdcc_resume,</p>
+<p>        .driver         = {<br>                .name   = “msm_sdcc”,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static int __initmsmsdcc_init(void)</p>
+<p>{<br>        return platform_driver_register(&amp;msmsdcc_driver);</p>
+<p>}</p>
+<p>驱动成功匹配设备后，调用probe函数：</p>
+<p>static int</p>
+<p>msmsdcc_probe(structplatform_device *pdev)</p>
+<p>{<br>……</p>
+<p>if (stat_irqres &amp;&amp;!(stat_irqres-&gt;flags &amp; IORESOURCE_DISABLED)) {<br>……</p>
+<p>        } else if(plat-&gt;register_status_notify) {<br>                plat-&gt;register_status_notify(msmsdcc_status_notify_cb,host);</p>
+<p>        } else if (!plat-&gt;status)</p>
+<p>……</p>
+<p>}</p>
+<p>msmsdcc_status_notify_cb调用msmsdcc_check_status函数：</p>
+<p>msmsdcc_status_notify_cb(intcard_present, void *dev_id)</p>
+<p>{<br>        struct msmsdcc_host *host = dev_id;</p>
+<p> </p>
+<p>        printk(KERN_DEBUG “%s:card_present %d\n”, mmc_hostname(host-&gt;mmc),</p>
+<p>               card_present);</p>
+<p>        msmsdcc_check_status((unsigned long) host);</p>
+<p>}</p>
+<p>msmsdcc_check_status调用mmc_detect_change函数：</p>
+<p>static void</p>
+<p>msmsdcc_check_status(unsignedlong data)</p>
+<p>{<br>        ……</p>
+<p>        if (status ^ host-&gt;oldstat) {<br>                pr_info(“%s: Slot statuschange detected (%d -&gt; %d)\n”,</p>
+<p>                        mmc_hostname(host-&gt;mmc),host-&gt;oldstat, status);</p>
+<p>                if (status &amp;&amp;!host-&gt;plat-&gt;built_in)</p>
+<p>                        mmc_detect_change(host-&gt;mmc, (5 * HZ) / 2);</p>
+<p>                else</p>
+<p>                        mmc_detect_change(host-&gt;mmc, 0);</p>
+<p>        }</p>
+<p> </p>
+<p>        host-&gt;oldstat = status;</p>
+<p> </p>
+<p>out:</p>
+<p>        if (host-&gt;timer.function)</p>
+<p>                mod_timer(&amp;host-&gt;timer,jiffies + HZ);</p>
+<p>}</p>
+<p>可以看到mmc_detect_change被调用了，这个函数触发了一个延时工作：</p>
+<p>void mmc_detect_change(structmmc_host *host, unsigned long delay)</p>
+<p>{<br>……</p>
+<p> </p>
+<p>        mmc_schedule_delayed_work(&amp;host-&gt;detect, delay);</p>
+<p>}</p>
+<p>这个时候它会在delay时间后，执行host-&gt;detect延时工作对应的函数，在host驱动注册并匹配设备成功后执行的probe函数里，会调用mmc_alloc_host动态创建一个mmc_host：</p>
+<p>msmsdcc_probe(structplatform_device *pdev)</p>
+<p>{<br>……</p>
+<p>/*</p>
+<p>         * Setup our host structure</p>
+<p>         */</p>
+<p> </p>
+<p>        mmc = mmc_alloc_host(sizeof(struct msmsdcc_host),&amp;pdev-&gt;dev);</p>
+<p>        if (!mmc) {<br>                ret = -ENOMEM;</p>
+<p>                goto out;</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>mmc_alloc_host初始化工作入口：</p>
+<p>struct mmc_host*mmc_alloc_host(int extra, struct device *dev)</p>
+<p>{<br>……</p>
+<p>INIT_DELAYED_WORK(&amp;host-&gt;detect, mmc_rescan);</p>
+<p>……</p>
+<p>}</p>
+<p>mmc_rescan是core.c中一个很重要的函数，它遵照 SDIO 卡协议的 SDIO 卡启动过程，包括了非激活模式、卡识别模式和数据传输模式三种模式共九种状态的转换，你需要参照相关规范来理解。</p>
+<p>void mmc_rescan(structwork_struct *work)</p>
+<p>{<br>        struct mmc_host *host =</p>
+<p>                container_of(work, structmmc_host, detect.work);</p>
+<p>……</p>
+<p>        mmc_power_up(host);</p>
+<p>        sdio_reset(host);</p>
+<p>        mmc_go_idle(host);</p>
+<p> </p>
+<p>       mmc_send_if_cond(host, host-&gt;ocr_avail);</p>
+<p> </p>
+<p>        /*</p>
+<p>         * First we search for SDIO…</p>
+<p>         */</p>
+<p>        err = mmc_send_io_op_cond(host, 0, &amp;ocr);</p>
+<p>        if (!err) {<br>                if (mmc_attach_sdio(host, ocr))</p>
+<p>                        mmc_power_off(host);</p>
+<p>                extend_wakelock = 1;</p>
+<p>                goto out;</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>这个mmc_attach_sdio函数很重要，它是SDIO卡的初始化的起点，主要工作包括：匹配SDIO卡的工作电压，分配并初始化mmc_card结构，然后注册mmc_card到系统中：</p>
+<p>/*</p>
+<p> * Starting point for SDIO card init.</p>
+<p> */</p>
+<p>int mmc_attach_sdio(structmmc_host *host, u32 ocr)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        mmc_attach_bus(host,&amp;mmc_sdio_ops);  //初始化host的bus_ops</p>
+<p> </p>
+<p>       ……</p>
+<p> </p>
+<p>        host-&gt;ocr = mmc_select_voltage(host, ocr); //匹配SDIO卡工作电压</p>
+<p> </p>
+<p>        ……</p>
+<p> </p>
+<p>        /*</p>
+<p>         * Detect and init the card.</p>
+<p>         */</p>
+<p>        err = mmc_sdio_init_card(host, host-&gt;ocr, NULL, 0);//检测，分配初始化mmc_card</p>
+<p>        if (err)</p>
+<p>                goto err;</p>
+<p>        card = host-&gt;card;</p>
+<p>/*</p>
+<p>         * If needed, disconnect card detectionpull-up resistor.</p>
+<p>         */</p>
+<p>        err = sdio_disable_cd(card);</p>
+<p>        if (err)</p>
+<p>                goto remove;</p>
+<p> </p>
+<p>        /*</p>
+<p>         * Initialize (but don’t add) all present functions.</p>
+<p>         */</p>
+<p>        for (i = 0; i &lt; funcs; i++, card-&gt;sdio_funcs++) {</p>
+<p>#ifdef CONFIG_MMC_EMBEDDED_SDIO</p>
+<p>                if(host-&gt;embedded_sdio_data.funcs) {</p>
+<p>                       struct sdio_func *tmp;</p>
+<p> </p>
+<p>                        tmp = sdio_alloc_func(host-&gt;card);</p>
+<p>                        if(IS_ERR(tmp))</p>
+<p>                               goto remove;</p>
+<p>                       tmp-&gt;num = (i + 1);</p>
+<p>                       card-&gt;sdio_func[i] = tmp;</p>
+<p>                       tmp-&gt;class = host-&gt;embedded_sdio_data.funcs[i].f_class;</p>
+<p>                       tmp-&gt;max_blksize = host-&gt;embedded_sdio_data.funcs[i].f_maxblksize;</p>
+<p>                       tmp-&gt;vendor = card-&gt;cis.vendor;</p>
+<p>                       tmp-&gt;device = card-&gt;cis.device;</p>
+<p>                } else {</p>
+<p>#endif</p>
+<p>                        err =sdio_init_func(host-&gt;card, i + 1);</p>
+<p>                        if (err)</p>
+<p>                                goto remove;</p>
+<p>#ifdefCONFIG_MMC_EMBEDDED_SDIO</p>
+<p>                }</p>
+<p>#endif</p>
+<p>        }</p>
+<p> </p>
+<p>        mmc_release_host(host);</p>
+<p> </p>
+<p>        /*</p>
+<p>         * First add the card to the drivermodel…</p>
+<p>         */</p>
+<p>        err = mmc_add_card(host-&gt;card);     //添加mmc_card</p>
+<p>        if (err)</p>
+<p>                goto remove_added;</p>
+<p> </p>
+<p>        /*</p>
+<p>         * …then the SDIO functions.</p>
+<p>         */</p>
+<p>        for (i = 0;i &lt; funcs;i++) {<br>                err =sdio_add_func(host-&gt;card-&gt;sdio_func[i]);              //将sdio_func加入系统</p>
+<p>                if (err)</p>
+<p>                       goto remove_added;</p>
+<p>        }</p>
+<p> </p>
+<p>        return 0;</p>
+<p>……</p>
+<p>}</p>
+<p>这样，SDIO卡已经初始化成功并添加到了驱动中。上面说的过程是在SDIO设备注册时的调用流程，mmc_rescan是整个流程主体部分，由它来完成SDIO设备的初始化和添加。其实上面的流程只是创建，初始化，添加SDIO设备的一条线，还有另外的两条线也会调用mmc_rescan函数进行SDIO设备的上述操作：</p>
+<ul>
+<li><p>加载SDIO host驱动模块</p>
+</li>
+<li><p>SDIO设备中断</p>
+</li>
+<li><p>加载SDIO host驱动模块<br>Host作为平台设备被注册，前面也有列出相应源码：</p>
+</li>
+</ul>
+<p>static struct platform_drivermsmsdcc_driver = {<br>        .probe          = msmsdcc_probe,</p>
+<p>        .suspend        = msmsdcc_suspend,</p>
+<p>        .resume         = msmsdcc_resume,</p>
+<p>        .driver         = {<br>                .name   = “msm_sdcc”,</p>
+<p>        },</p>
+<p>};</p>
+<p> </p>
+<p>static int __initmsmsdcc_init(void)</p>
+<p>{<br>        returnplatform_driver_register(&amp;msmsdcc_driver);</p>
+<p>}</p>
+<p> </p>
+<p>Probe函数会调用mmc_alloc_host函数（代码前面已经贴出）来创建mmc_host结构变量，进行必要的初始化之后，调用mmc_add_host函数将它添加到驱动里面：</p>
+<p>int mmc_add_host(structmmc_host *host)</p>
+<p>{<br>        ……</p>
+<p> </p>
+<p>        err =device_add(&amp;host-&gt;class_dev);</p>
+<p>        if (err)</p>
+<p>                return err;</p>
+<p>        mmc_start_host(host);</p>
+<p>        if (!(host-&gt;pm_flags &amp;MMC_PM_IGNORE_PM_NOTIFY))</p>
+<p>                register_pm_notifier(&amp;host-&gt;pm_notify);</p>
+<p> </p>
+<p>        return 0;</p>
+<p>}</p>
+<p>       Mmc_start_host定义如下：</p>
+<p>void mmc_start_host(structmmc_host *host)</p>
+<p>{</p>
+<p>      mmc_power_off(host);</p>
+<p>       mmc_detect_change(host, 0);</p>
+<p>}</p>
+<p>mmc_power_off中对 ios进行了设置，然后调用 mmc_set_ios(host);</p>
+<p>host-&gt;ios.power_mode = MMC_POWER_OFF;</p>
+<p>       host-&gt;ios.bus_width = MMC_BUS_WIDTH_1;</p>
+<p>       host-&gt;ios.timing =MMC_TIMING_LEGACY;</p>
+<p>       mmc_set_ios(host);</p>
+<p>mmc_set_ios(host) 中的关键语句 host-&gt;ops-&gt;set_ios(host, ios)，实际上在host驱动的probe函数中就已经对host-&gt;ops进行了初始化：</p>
+<p>……</p>
+<p>/*</p>
+<p>         * Setup MMC host structure</p>
+<p>         */</p>
+<p>        mmc-&gt;ops = &amp;msmsdcc_ops;</p>
+<p>……</p>
+<p> </p>
+<p>static const structmmc_host_ops msmsdcc_ops = {<br>        .request        = msmsdcc_request,</p>
+<p>        .set_ios        =msmsdcc_set_ios,</p>
+<p>        .enable_sdio_irq =msmsdcc_enable_sdio_irq,</p>
+<p>};</p>
+<p> </p>
+<p>所以实际上调用的是msmsdcc_set_ios，关于这个函数就不介绍了，可以参考源码，再看 mmc_detect_change(host, 0)，最后一句是：</p>
+<p>      mmc_schedule_delayed_work(&amp;host-&gt;detect,delay);</p>
+<p>实际上就是调用我们前面说的延时函数 mmc_rescan，后面的流程是一样的。</p>
+<ul>
+<li>SDIO设备中断<br>SDIO设备通过SDIO总线与host相连，SDIO总线的DAT[1]即pin8可以作为中断线使用，当SDIO设备向host产生中断时，host会对终端做出相应的动作，在host驱动的probe函数中申请并注册相应的中断函数：</li>
+</ul>
+<p>static int</p>
+<p>msmsdcc_probe(structplatform_device *pdev)</p>
+<p>{<br>……</p>
+<p>  cmd_irqres = platform_get_resource_byname(pdev, IORESOURCE_IRQ,</p>
+<p>                                                 “cmd_irq”);</p>
+<p>        pio_irqres =platform_get_resource_byname(pdev, IORESOURCE_IRQ,</p>
+<p>                                                 “pio_irq”);</p>
+<p>        stat_irqres =platform_get_resource_byname(pdev, IORESOURCE_IRQ,</p>
+<p>                                                  “status_irq”);</p>
+<p>……</p>
+<p>  if (stat_irqres &amp;&amp; !(stat_irqres-&gt;flags &amp;IORESOURCE_DISABLED)) {<br>                unsigned long irqflags =IRQF_SHARED |</p>
+<p>                        (stat_irqres-&gt;flags&amp; IRQF_TRIGGER_MASK);</p>
+<p> </p>
+<p>                host-&gt;stat_irq = stat_irqres-&gt;start;</p>
+<p>                ret = request_irq(host-&gt;stat_irq,</p>
+<p>                                  msmsdcc_platform_status_irq,</p>
+<p>                                 irqflags,</p>
+<p>                                 DRIVER_NAME “ (slot)”,</p>
+<p>                                 host);</p>
+<p>                if (ret) {<br>                        pr_err(“%s: Unableto get slot IRQ %d (%d)\n”,</p>
+<p>                              mmc_hostname(mmc), host-&gt;stat_irq, ret);</p>
+<p>                        goto clk_disable;</p>
+<p>                }</p>
+<p>        }</p>
+<p>……</p>
+<p>}</p>
+<p>当产生相应的中断时调用msmsdcc_platform_status_irq中断处理函数，这个函数的处理流程：</p>
+<p>msmsdcc_platform_status_irq—&gt;</p>
+<p>msmsdcc_check_statusà</p>
+<p>mmc_detect_changeà</p>
+<p>mmc_rescanà</p>
+<p>那么，这里为何调用mmc_rescan呢？因为前面说过mmc_rescanrescan函数主要用于SDIO设备的初始化，如果SDIO设备产生中断不应该是已经初始化可以使用了吗？其实mmc_rescan还有其它的工作，从函数名就能看出来它还有再扫描检测功能，即如果设备产生了中断，mmc_rescan函数一开始就会再次检测所有挂接在该host上的所有SDIO设备，确认是否存在，如果不存在就做相应的释放工作，以确保数据的一致性。如果检测到了新的设备那么它就会创建一个新的mmc_card，初始化并添加该设备。</p>
+<p>中断引发的调用mmc_rescan动作的意义：实现了SDIO设备的热插拔功能。</p>
+<h2 id="WIFI驱动流程（二）"><a href="#WIFI驱动流程（二）" class="headerlink" title="WIFI驱动流程（二）"></a>WIFI驱动流程（二）</h2><p>  此调用流程由dhd_bus_register发起，通过sdio_register_driver注册一个sdio设备驱动，然后通过dhdsdio_probe初始化并注册一个网络设备，网络设备的注册标志着wifi驱动已经成功加载，关于网络设备的创建，初始化和注册后面会有详细介绍，先来理一下上面的调用流程，：</p>
+<p> </p>
+<p>dhd_mudule_init—&gt;             //path:dhd/sys/dhd_linux.c</p>
+<p>Dhd_bus_registerà        // dhd/sys/dhd_sdio.c</p>
+<p>Bcmsdh_registerà         // bcmsdio/sys/bcmsdh_linux.c</p>
+<p>Sdio_function_inità              // bcmsdio/sys/bcmsdh_sdmmc_linux.c</p>
+<p>Sdio_register_driverà  // bcmsdio/sys/bcmsdh_sdmmc_linux.c</p>
+<p>Bcmsdh_sdmmc_probeà//bcmsdio/sys/bcmsdh_sdmmc_linux.c</p>
+<p>Bcmsdh_probeà//bcmsdio/sys/bcmsdh_linux.c</p>
+<p>Bcmsdio_probeà //dhd/sys/dhd_sdio.c</p>
+<p>这里注意上面两个红色标记的函数，sdio_register_driver注册了一个sdio设备，在匹配成功后调用bcmsdh_sdmmc_probe函数，这个函数会调用bcmsdh_probe。这里有一点要注意：浏览bcmsdh_linux.c文件可以看出，在bcmsdh_register函数中，当定义了BCMLXSDMMC宏时，会调用sdio_function_init函数，否则调用driver_register函数：</p>
+<p>int</p>
+<p>bcmsdh_register(bcmsdh_driver_t*driver)</p>
+<p>{<br>        int error = 0;</p>
+<p> </p>
+<p>        drvinfo = *driver; //注意这里，后面会介绍到它的用处</p>
+<p> </p>
+<p>#if defined(BCMPLATFORM_BUS)</p>
+<p>#if defined(BCMLXSDMMC)</p>
+<p>       SDLX_MSG((“Linux Kernel SDIO/MMC Driver\n”));</p>
+<p>        error =sdio_function_init();</p>
+<p>#else</p>
+<p>       SDLX_MSG((“Intel PXA270 SDIO Driver\n”));</p>
+<p>        error =driver_register(&amp;bcmsdh_driver);</p>
+<p>#endif /* defined(BCMLXSDMMC) */</p>
+<p>        return error;</p>
+<p>#endif /*defined(BCMPLATFORM_BUS) */</p>
+<p> </p>
+<p>#if !defined(BCMPLATFORM_BUS)&amp;&amp; !defined(BCMLXSDMMC)</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 0))</p>
+<p>        if (!(error =pci_module_init(&amp;bcmsdh_pci_driver)))</p>
+<p>                return 0;</p>
+<p>#else</p>
+<p>        if (!(error =pci_register_driver(&amp;bcmsdh_pci_driver)))</p>
+<p>                return 0;</p>
+<p>#endif</p>
+<p> </p>
+<p>        SDLX_MSG((“%s: pci_module_initfailed 0x%x\n”, <strong>FUNCTION</strong>, error));</p>
+<p>#endif /* BCMPLATFORM_BUS */</p>
+<p> </p>
+<p>        return error;</p>
+<p>}</p>
+<p>上面的流程中有sdio_function_init的调用出现，所以这里实际上BCMLXSDMMC宏被定义了，bcmsdh_probe函数只是作为一个普通函数被调用，如果不定义该宏，那么bcmsdh_probe函数会被作为驱动匹配设备后第一个调用的函数而被自动调用。</p>
+<p>再看看dhdsdio_probe函数调用的玄机，从上面的bcmsdh_register函数可以看出它的参数被传递给了drvinfo，看看bcmsdh_register的调用地方：</p>
+<p>static bcmsdh_driver_t dhd_sdio = {</p>
+<p>        dhdsdio_probe,</p>
+<p>        dhdsdio_disconnect</p>
+<p>};</p>
+<p> </p>
+<p>int</p>
+<p>dhd_bus_register(void)</p>
+<p>{<br>        DHD_TRACE((“%s: Enter\n”,<strong>FUNCTION</strong>));</p>
+<p> </p>
+<p>        return bcmsdh_register(&amp;dhd_sdio);</p>
+<p>}</p>
+<p>上面传递的参数是dhd_sdio结构变量，被用两个函数初始化了，那么哪一个是attach呢？需要找到定义bcmsdh_driver_t结构定义的地方：</p>
+<p>Path：src/include/bcmsdh.h</p>
+<p>/* callback functions */</p>
+<p>typedef struct {<br>        /* attach to device */</p>
+<p>        void *(*attach)(uint16 vend_id, uint16 dev_id, uint16 bus,uint16 slot,</p>
+<p>                       uint16 func, uint bustype, void * regsva, osl_t * osh,</p>
+<p>                       void * param);</p>
+<p>        /* detach from device */</p>
+<p>        void (*detach)(void *ch);</p>
+<p>} bcmsdh_driver_t;</p>
+<p>没错，就是第一个dhdsdio_probe函数，再来看看什么地方调用了这个attach函数：</p>
+<p>Path:bcmsdio/sys/bcmsdh_linux.c</p>
+<p> </p>
+<p>#ifndef BCMLXSDMMC</p>
+<p>static</p>
+<p>#endif /* BCMLXSDMMC */</p>
+<p>int bcmsdh_probe(struct device*dev)</p>
+<p>{<br>……</p>
+<p>if (!(sdhc-&gt;ch = drvinfo.attach((vendevid&gt;&gt; 16),</p>
+<p>                                        (vendevid &amp; 0xFFFF), 0, 0, 0, 0,</p>
+<p>                                        (void*)regs, NULL, sdh))) {<br>                SDLX_MSG((“%s: device attachfailed\n”, <strong>FUNCTION</strong>));</p>
+<p>                goto err;</p>
+<p>        }</p>
+<p> </p>
+<p>        return 0;</p>
+<p>……</p>
+<p>}</p>
+<p>红色部分的函数调用是drvinfo.attach，就是上面传递过来的dhdsdio_probe函数了，仔细阅读你会发现上面那个bcmsdh_driver_t结构体定义的地方有个说明，即把该结构的成员函数当做callback函数来使用，这就是它的用意所在。</p>
+<p>1.3.4       网络设备注册流程<br>上面是网络设备注册流程，在dhdsdio_probe函数中先后对dhd_attach和dhd_net_attach两个函数调用，dhd_attach主要用于创建和初始化dhd_info_t和net_device两个结构变量，然后调用dhd_add_if将创建的net_device变量添加到dhd_info_t变量的iflist列表中（支持多接口）。</p>
+<p>Dhd_attach的流程如下：</p>
+<p>dhd_pub_t *</p>
+<p>dhd_attach(osl_t *osh, structdhd_bus *bus, uint bus_hdrlen)</p>
+<p>{<br>        dhd_info_t *dhd = NULL;</p>
+<p>        struct net_device *net = NULL;</p>
+<p> </p>
+<p>……</p>
+<p>        /* Allocate etherdev, including spacefor private structure */</p>
+<p>        if (!(net = alloc_etherdev(sizeof(dhd)))) {   //网络设备的创建</p>
+<p>                DHD_ERROR((“%s: OOM -alloc_etherdev\n”, <strong>FUNCTION</strong>));</p>
+<p>                goto fail;</p>
+<p>        }</p>
+<p>        dhd_state |=DHD_ATTACH_STATE_NET_ALLOC;</p>
+<p> </p>
+<p> </p>
+<p>        /* Allocate primary dhd_info */</p>
+<p>        if (!(dhd = MALLOC(osh, sizeof(dhd_info_t)))) { //dhd的创建</p>
+<p>                DHD_ERROR((“%s: OOM -alloc dhd_info\n”, <strong>FUNCTION</strong>));</p>
+<p>                goto fail;</p>
+<p>        }</p>
+<p>……</p>
+<p>/* Set network interface name if it was provided as moduleparameter */</p>
+<p>        if (iface_name[0]) {<br>                int len;</p>
+<p>                char ch;</p>
+<p>                strncpy(net-&gt;name,iface_name, IFNAMSIZ);</p>
+<p>                net-&gt;name[IFNAMSIZ - 1] = 0;</p>
+<p>                len = strlen(net-&gt;name);</p>
+<p>                ch = net-&gt;name[len - 1];</p>
+<p>                if ((ch &gt; ‘9’ || ch &lt;’0’) &amp;&amp; (len &lt; IFNAMSIZ - 2))</p>
+<p>                        strcat(net-&gt;name,”%d”);</p>
+<p>        }</p>
+<p> </p>
+<p>        if (dhd_add_if(dhd, 0, (void *)net, net-&gt;name, NULL, 0, 0)== DHD_BAD_IF)   //将前面创建的net添加到iflist列表中</p>
+<p>                goto fail;</p>
+<p>        dhd_state |= DHD_ATTACH_STATE_ADD_IF;</p>
+<p>……</p>
+<p>Memcpy(netdev_priv(net), &amp;dhd, sizeof(dhd)); //关联dhd和net</p>
+<p> </p>
+<p>//dhd的初始化工作</p>
+<p>}</p>
+<p>Dhd_add_if的添加网络接口流程：</p>
+<p>int</p>
+<p>dhd_add_if(dhd_info_t *dhd, int ifidx, void *handle, char *name,</p>
+<p>        uint8 *mac_addr,uint32 flags, uint8 bssidx)</p>
+<p>{<br>        dhd_if_t *ifp;</p>
+<p> </p>
+<p>        DHD_TRACE((“%s: idx %d,handle-&gt;%p\n”, <strong>FUNCTION</strong>, ifidx, handle));</p>
+<p> </p>
+<p>        ASSERT(dhd &amp;&amp; (ifidx &lt;DHD_MAX_IFS));</p>
+<p> </p>
+<p>        ifp =dhd-&gt;iflist[ifidx];</p>
+<p>        if (ifp != NULL) {<br>                if (ifp-&gt;net != NULL) {<br>                       netif_stop_queue(ifp-&gt;net);</p>
+<p>                       unregister_netdev(ifp-&gt;net);</p>
+<p>                        free_netdev(ifp-&gt;net);   //如果已经存在，释放net成员</p>
+<p>                }</p>
+<p>        } else</p>
+<p>                if ((ifp = MALLOC(dhd-&gt;pub.osh,sizeof(dhd_if_t))) == NULL) {</p>
+<p>                       DHD_ERROR((“%s: OOM - dhd_if_t\n”, <strong>FUNCTION</strong>));      //否则，创建一个dhd_if_t结构变量</p>
+<p>                        return -ENOMEM;</p>
+<p>                }</p>
+<p> </p>
+<p>        memset(ifp, 0, sizeof(dhd_if_t));</p>
+<p>        ifp-&gt;info = dhd;      //进行系列初始化，添加工作</p>
+<p>       dhd-&gt;iflist[ifidx] = ifp;</p>
+<p>       strncpy(ifp-&gt;name, name, IFNAMSIZ);</p>
+<p>        ifp-&gt;name[IFNAMSIZ] = ‘\0’;</p>
+<p>        if (mac_addr != NULL)</p>
+<p>                memcpy(&amp;ifp-&gt;mac_addr, mac_addr,ETHER_ADDR_LEN);</p>
+<p> </p>
+<p>        if (handle == NULL) {<br>                ifp-&gt;state = DHD_IF_ADD;</p>
+<p>                ifp-&gt;idx = ifidx;</p>
+<p>                ifp-&gt;bssidx = bssidx;</p>
+<p>               ASSERT(&amp;dhd-&gt;thr_sysioc_ctl.thr_pid &gt;= 0);</p>
+<p>               up(&amp;dhd-&gt;thr_sysioc_ctl.sema);</p>
+<p>        } else</p>
+<p>                ifp-&gt;net = (struct net_device *)handle;             //handle即一个net_device变量</p>
+<p> </p>
+<p>        return 0;</p>
+<p>}</p>
+<p>这样，一个net_device网路设备就被添加到了接口管理列表中了，但是这是网路设备还没有完成初始化和注册工作，bcmsdio_probe函数随后对dhd_net_attach的调用完成了这个操作：</p>
+<p>int</p>
+<p>dhd_net_attach(dhd_pub_t*dhdp, int ifidx)</p>
+<p>{<br>        dhd_info_t <em>dhd = (dhd_info_t</em>)dhdp-&gt;info;</p>
+<p>        struct net_device *net = NULL;</p>
+<p>        int err = 0;</p>
+<p>        uint8 temp_addr[ETHER_ADDR_LEN] = {0x00, 0x90, 0x4c, 0x11, 0x22, 0x33 };</p>
+<p> </p>
+<p>        DHD_TRACE((“%s: ifidx %d\n”,<strong>FUNCTION</strong>, ifidx));</p>
+<p> </p>
+<p>        ASSERT(dhd &amp;&amp;dhd-&gt;iflist[ifidx]);</p>
+<p> </p>
+<p>        net = dhd-&gt;iflist[ifidx]-&gt;net;              //首先从刚才添加的接口列表中取出net，然后进行下面的系列初始化工作</p>
+<p>        ASSERT(net);</p>
+<p>//根据内核版本信息，选择对net成员函数的初始化方式，假设是2.6.30的版本</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 31))</p>
+<p>        ASSERT(!net-&gt;open);</p>
+<p>        net-&gt;get_stats = dhd_get_stats;</p>
+<p>        net-&gt;do_ioctl =dhd_ioctl_entry;</p>
+<p>       net-&gt;hard_start_xmit = dhd_start_xmit;</p>
+<p>       net-&gt;set_mac_address = dhd_set_mac_address;</p>
+<p>       net-&gt;set_multicast_list = dhd_set_multicast_list;</p>
+<p>        net-&gt;open =net-&gt;stop = NULL;</p>
+<p>#else</p>
+<p>        ASSERT(!net-&gt;netdev_ops);</p>
+<p>        net-&gt;netdev_ops = &amp;dhd_ops_virt;</p>
+<p>#endif</p>
+<p> </p>
+<p>        /* Ok, link into the network layer…*/</p>
+<p>        if (ifidx == 0) {<br>                /*</p>
+<p>                 * device functions for theprimary interface only</p>
+<p>                 */</p>
+<p>#if (LINUX_VERSION_CODE &lt;KERNEL_VERSION(2, 6, 31))</p>
+<p>                net-&gt;open = dhd_open;</p>
+<p>               net-&gt;stop = dhd_stop;</p>
+<p>#else</p>
+<p>                net-&gt;netdev_ops = &amp;dhd_ops_pri;</p>
+<p>#endif</p>
+<p>        } else {<br>                /*</p>
+<p>                 * We have to use the primaryMAC for virtual interfaces</p>
+<p>                                                                                                                          3417,1-8      66%</p>
+<p>                 */</p>
+<p>                memcpy(temp_addr,dhd-&gt;iflist[ifidx]-&gt;mac_addr, ETHER_ADDR_LEN);</p>
+<p>                /*</p>
+<p>                 * Android sets the locallyadministered bit to indicate that this is a</p>
+<p>                 * portable hotspot.  This will not work in simultaneous AP/STAmode,</p>
+<p>                 * nor with P2P.  Need to set the Donlge’s MAC address, andthen use that.</p>
+<p>                 */</p>
+<p>                if(!memcmp(temp_addr, dhd-&gt;iflist[0]-&gt;mac_addr,</p>
+<p>                        ETHER_ADDR_LEN)) {</p>
+<p>                        DHD_ERROR((“%sinterface [%s]: set locally administered bit in MAC\n”,</p>
+<p>                        <strong>func</strong>,net-&gt;name));</p>
+<p>                        temp_addr[0] |= 0x02;</p>
+<p>                }</p>
+<p>        }</p>
+<p> </p>
+<p>       net-&gt;hard_header_len = ETH_HLEN + dhd-&gt;pub.hdrlen;</p>
+<p>#if LINUX_VERSION_CODE &gt;=KERNEL_VERSION(2, 6, 24)</p>
+<p>        net-&gt;ethtool_ops = &amp;dhd_ethtool_ops;</p>
+<p>#endif /* LINUX_VERSION_CODE&gt;= KERNEL_VERSION(2, 6, 24) */</p>
+<p> </p>
+<p>#ifdefined(CONFIG_WIRELESS_EXT)</p>
+<p>#if WIRELESS_EXT &lt; 19</p>
+<p>        net-&gt;get_wireless_stats = dhd_get_wireless_stats;</p>
+<p>#endif /* WIRELESS_EXT &lt; 19*/</p>
+<p>#if WIRELESS_EXT &gt; 12</p>
+<p>        net-&gt;wireless_handlers = (struct iw_handler_def*)&amp;wl_iw_handler_def;   //这里的初始化工作很重要，之后的ioctl流程会涉及到对它的使用</p>
+<p>#endif /* WIRELESS_EXT &gt; 12*/</p>
+<p>#endif /*defined(CONFIG_WIRELESS_EXT) */</p>
+<p> </p>
+<p>        dhd-&gt;pub.rxsz =DBUS_RX_BUFFER_SIZE_DHD(net);</p>
+<p>                //设置设备地址</p>
+<p>        memcpy(net-&gt;dev_addr, temp_addr, ETHER_ADDR_LEN);</p>
+<p> </p>
+<p>        if ((err =register_netdev(net)) != 0) {       //注册net</p>
+<p>                DHD_ERROR((“couldn’tregister the net device, err %d\n”, err));</p>
+<p>                goto fail;</p>
+<p>        }</p>
+<p>       </p>
+<p> </p>
+<p>……</p>
+<p>}</p>
+<p>到这里net网络设备就被注册到系统中了，设备准备好了就好对设备进行访问了。</p>
+
+    </div>
+
+    
+    
+    
+    <div>
+      
+        <div>
+    
+        <div style="text-align:center;color: #ccc;font-size:14px;">-------------本文结束<i class="fa fa-paw"></i>感谢您的阅读-------------</div>
+    
+</div>
+      
+    </div>
+        <div class="reward-container">
+  <div>坚持原创技术分享，您的支持将鼓励我继续创作！</div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="孙涛&占莹莹 微信支付">
+        <p>微信支付</p>
+      </div>
+      
+      <div style="display: inline-block;">
+        <img src="/images/alipay.jpg" alt="孙涛&占莹莹 支付宝">
+        <p>支付宝</p>
+      </div>
+
+  </div>
+</div>
+
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>孙涛&占莹莹
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://example.com/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%B8%89%E7%AF%87%EF%BC%89/" title="信号幽灵wifi（第三篇）">http://example.com/2021/03/06/信号幽灵wifi（第三篇）/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fa fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+            <div class="social-item">
+              <a target="_blank" class="social-link" href="/atom.xml">
+                <span class="icon">
+                  <i class="fa fa-rss"></i>
+                </span>
+
+                <span class="label">RSS</span>
+              </a>
+            </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%9F%A5%E8%AF%86/" rel="tag"><i class="fa fa-tag"></i>
+              <a href="/tags/%E5%88%86%E4%BA%AB/" rel="tag"><i class="fa fa-tag"></i>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E4%BA%8C%E7%AF%87%EF%BC%89/" rel="prev" title="信号幽灵wifi（第二篇）">
+      <i class="fa fa-chevron-left"></i> 信号幽灵wifi（第二篇）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/03/06/%E4%BF%A1%E5%8F%B7%E5%B9%BD%E7%81%B5wifi%EF%BC%88%E7%AC%AC%E5%9B%9B%E7%AF%87%EF%BC%89/" rel="next" title="信号幽灵wifi（第四篇）">
+      信号幽灵wifi（第四篇） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+  
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        <iframe frameborder="no" border="0" marginwidth="0" marginheight="0" width=330 height=86 src="//music.163.com/outchain/player?type=2&id=28764319&auto=1&height=66"></iframe>
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#WLAN%E9%A9%B1%E5%8A%A8%E7%BB%93%E6%9E%84%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">WLAN驱动结构介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Boardcom%E6%97%A0%E7%BA%BF%E9%80%9A%E8%AE%AF%E8%8A%AF%E7%89%87"><span class="nav-number">1.1.</span> <span class="nav-text">Boardcom无线通讯芯片</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%A6%E7%BB%86%E6%8E%A5%E5%8F%A3%E5%8F%8A%E4%BB%A3%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-number">1.2.</span> <span class="nav-text">详细接口及代码分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#WIFI%E9%A9%B1%E5%8A%A8%E6%B5%81%E7%A8%8B%EF%BC%88%E4%BA%8C%EF%BC%89"><span class="nav-number">1.3.</span> <span class="nav-text">WIFI驱动流程（二）</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="孙涛&占莹莹"
+      src="/images/1.jpg">
+  <p class="site-author-name" itemprop="name">孙涛&占莹莹</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">14</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/shatangst" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;shatangst" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:1471487544@qq.com" title="E-Mail → mailto:1471487544@qq.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://weibo.com/5983778030/profile?topnav=1&wvr=6&is_all=1" title="微博 → https:&#x2F;&#x2F;weibo.com&#x2F;5983778030&#x2F;profile?topnav&#x3D;1&amp;wvr&#x3D;6&amp;is_all&#x3D;1" rel="noopener" target="_blank"><i class="fa fa-fw fa-weibo"></i>微博</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://space.bilibili.com/96799044" title="BiLiBiLi → https:&#x2F;&#x2F;space.bilibili.com&#x2F;96799044" rel="noopener" target="_blank"><i class="fa fa-fw fa-bilibili"></i>BiLiBiLi</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/vgMPFHsZumYftnW" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;vgMPFHsZumYftnW" rel="noopener" target="_blank"><i class="fa fa-fw fa-twitter"></i>Twitter</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.facebook.com/profile.php?id=100026465884414" title="Facebook → https:&#x2F;&#x2F;www.facebook.com&#x2F;profile.php?id&#x3D;100026465884414" rel="noopener" target="_blank"><i class="fa fa-fw fa-facebook"></i>Facebook</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://youtube.com/" title="YouTube → https:&#x2F;&#x2F;youtube.com&#x2F;" rel="noopener" target="_blank"><i class="fa fa-fw fa-youtube"></i>YouTube</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.instagram.com/sugar_tttttttttttt/" title="Instagram → https:&#x2F;&#x2F;www.instagram.com&#x2F;sugar_tttttttttttt&#x2F;" rel="noopener" target="_blank"><i class="fa fa-fw fa-instagram"></i>Instagram</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">孙涛&占莹莹</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v5.4.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v7.7.2
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  
+  <script color='0,0,0' opacity='0.5' zIndex='-1' count='150' src="/lib/canvas-nest/canvas-nest.min.js"></script>
+  <script size="300" alpha="0.6" zIndex="-1" src="/lib/canvas-ribbon/canvas-ribbon.js"></script>
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//unpkg.com/valine/dist/Valine.min.js', () => {
+    var GUEST = ['nick', 'mail', 'link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item => {
+      return GUEST.includes(item);
+    });
+    new Valine({
+      el         : '#valine-comments',
+      verify     : false,
+      notify     : false,
+      appId      : 'H8NYfDQXEpQ09BmbBcpnXcUh-gzGzoHsz',
+      appKey     : '9E7LMaKrguVpdiT9NDGzyjrN',
+      placeholder: "说点什么吧",
+      avatar     : 'mm',
+      meta       : guest,
+      pageSize   : '10' || 10,
+      visitor    : false,
+      lang       : '' || 'zh-cn',
+      path       : location.pathname,
+      recordIP   : false,
+      serverURLs : ''
+    });
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>
